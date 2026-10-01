@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf8ff">
+<title>YiDoku Web · 数独</title>
+<style>
+  :root {
+    --h: 257;
+    --bg:#fbf8ff; --surf:#efeaf5; --surfHi:#e9e4f0; --tonal:#e2dfe8;
+    --primary:#543d8c; --onPrimary:#fff; --pc:#dcd0f8; --onPc:#1c0b4a;
+    --sc:#dcd6ec; --onSc:#1b1630;
+    --text:#1b1822; --textVar:#48435a; --outline:#7a748a; --outlineV:#cbc5d6;
+    --err:#ba1a1a; --errC:#ffdad6; --onErrC:#410002;
+    --board:#d5d0e1; --cell:#f7f5fc; --given:#e1dbf1; --peer:#d7cdee; --same:#b9a8e6;
+    --radius-xl:28px;
+    font-family: "Nebulove","Google Sans", Roboto, "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; }
+  body {
+    min-height:100vh; color:var(--text);
+    background:
+      radial-gradient(circle at 88% 16%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 38%),
+      radial-gradient(circle at 5% 70%, color-mix(in srgb, var(--primary) 6%, transparent), transparent 40%),
+      var(--bg);
+    background-attachment: fixed;
+    transition: background-color .3s, color .3s;
+    touch-action: manipulation;
+  }
+  button { font:inherit; color:inherit; border:none; background:none; cursor:pointer; padding:0; }
+  svg { display:block; }
+  .ico { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .ico.fill { fill:currentColor; stroke:none; }
+
+  /* ===== Header ===== */
+  header { background: color-mix(in srgb, var(--bg) 88%, var(--primary) 0%); position:sticky; top:0; z-index:20; backdrop-filter: blur(8px); }
+  .hwrap { max-width:1040px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:8px; position:relative; }
+  .logo { width:46px; height:46px; border-radius:15px; background:var(--primary); display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:11px; flex:none; }
+  .logo i { background:var(--onPrimary); border-radius:3px; opacity:.95; }
+  .logo i:nth-child(2n) { opacity:.55; }
+  .logo i:nth-child(5) { opacity:1; }
+  .brand { display:flex; align-items:center; gap:6px; flex:1; min-width:0; padding-left:4px; }
+  .brand h1 { margin:0; font-size:24px; font-weight:700; letter-spacing:-.3px; white-space:nowrap; flex:none; }
+  .badge { background:var(--pc); color:var(--onPc); font-size:12px; font-weight:600; padding:3px 9px; border-radius:99px; flex:none; }
+  .hbtn { width:42px; height:42px; flex:none; border-radius:50%; display:grid; place-items:center; color:var(--textVar); position:relative; transition:background .2s, transform .1s; }
+  .hbtn:hover { background:color-mix(in srgb, var(--text) 8%, transparent); }
+  .hbtn:active { transform:scale(.92); background:color-mix(in srgb, var(--text) 14%, transparent); }
+  .hbtn .ico { width:26px; height:26px; }
+
+  .pop { position:absolute; right:20px; top:calc(100% - 4px); background:var(--surfHi); border-radius:20px; padding:8px; min-width:210px;
+    box-shadow:0 8px 28px rgba(0,0,0,.2); opacity:0; transform:scale(.9) translateY(-8px); transform-origin:top right; pointer-events:none; transition:opacity .18s, transform .18s; z-index:30; }
+  .pop.open { opacity:1; transform:none; pointer-events:auto; }
+  .pop .item { display:flex; align-items:center; gap:14px; width:100%; padding:12px 14px; border-radius:14px; font-size:15px; font-weight:500; text-align:left; }
+  .pop .item:hover { background:color-mix(in srgb, var(--primary) 10%, transparent); }
+  .pop .item .ico { width:22px; height:22px; color:var(--textVar); }
+  .pop h4 { margin:6px 10px 10px; font-size:13px; font-weight:600; color:var(--textVar); }
+  .swatches { display:grid; grid-template-columns:repeat(4,1fr); gap:10px 8px; padding:0 6px 6px; width:260px; }
+  .sw { display:flex; flex-direction:column; align-items:center; gap:4px; font-size:12px; color:var(--textVar); }
+  .sw span.c { width:48px; height:48px; border-radius:50%; display:grid; place-items:center; color:#fff; transition:transform .15s, box-shadow .15s; }
+  .sw:hover span.c { transform:scale(1.07); }
+  .sw.sel span.c { box-shadow:0 0 0 3px var(--surfHi), 0 0 0 5px var(--primary); }
+  .sw .ico { width:22px; height:22px; stroke-width:3; opacity:0; }
+  .sw.sel .ico { opacity:1; }
+
+  /* ===== Layout ===== */
+  .app { max-width:520px; margin:0 auto; padding:8px 20px 36px; }
+  .layout { display:grid; gap:18px; grid-template-columns:minmax(0,1fr); grid-template-areas:"title" "stats" "board" "controls"; }
+  .title { grid-area:title; display:flex; align-items:baseline; gap:14px; padding:6px 4px 0; }
+  .title h2 { margin:0; font-size:48px; font-weight:800; letter-spacing:-1px; line-height:1; }
+  .title small { font-size:18px; font-weight:600; color:var(--textVar); }
+  .stats { grid-area:stats; display:grid; grid-template-columns:1fr 1fr 56px 56px; gap:12px; align-items:center; }
+  .card { border-radius:28px; padding:12px 8px 14px; text-align:center; min-width:0; }
+  .card.a { background:var(--sc); color:var(--onSc); }
+  .card.b { background:var(--pc); color:var(--onPc); }
+  .card .l { font-size:14px; font-weight:600; opacity:.85; letter-spacing:1px; }
+  .card .v { font-size:30px; font-weight:800; white-space:nowrap; line-height:1.15; font-variant-numeric:tabular-nums; }
+  .round { width:56px; height:56px; border-radius:50%; display:grid; place-items:center; transition:transform .1s, filter .2s, opacity .2s; }
+  .round:active { transform:scale(.9); }
+  .round.tonal { background:var(--tonal); color:var(--text); }
+  .round.fill { background:var(--primary); color:var(--onPrimary); }
+  .round:disabled { opacity:.38; cursor:default; }
+  .round:not(:disabled):hover { filter:brightness(.94); }
+  .round .ico { width:26px; height:26px; stroke-width:2.4; }
+  .round.fill:active .ico { transform:rotate(180deg); transition:transform .3s; }
+
+  /* ===== Board ===== */
+  .boardWrap { grid-area:board; position:relative; }
+  .board { container-type:inline-size; background:var(--board); border-radius:28px; padding:10px; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; user-select:none; -webkit-user-select:none; transition:background .3s, opacity .2s; }
+  .board.loading { opacity:.45; pointer-events:none; }
+  .box { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; }
+  .cell { aspect-ratio:1; border-radius:max(10px,3.3cqw); background:var(--cell); display:grid; place-items:center; position:relative; cursor:pointer;
+    font-size:6.4cqw; font-weight:600; color:var(--primary); transition:background-color .15s, color .15s, transform .15s; overflow:hidden; }
+  .cell.given { background:var(--given); color:var(--text); font-weight:700; }
+  .cell.peer { background:var(--peer); box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--primary) 24%, transparent); }
+  .cell.same { background:var(--same); color:var(--text); box-shadow:none; }
+  .cell.wrong { background:var(--errC); color:var(--err); }
+  .cell.sel { background:var(--primary); color:var(--onPrimary); transform:scale(1.04); z-index:2; box-shadow:0 2px 10px color-mix(in srgb, var(--primary) 45%, transparent); }
+  .cell.sel.wrong { background:var(--err); color:var(--errC); }
+  .notes { position:absolute; inset:2px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); pointer-events:none; }
+  .notes span { display:grid; place-items:center; font-size:max(8px,2.9cqw); font-weight:600; color:var(--textVar); line-height:1; }
+  .notes span.hl { color:var(--primary); font-weight:800; }
+  .cell.sel .notes span { color:var(--onPrimary); opacity:.8; }
+  .cell.sel .notes span.hl { opacity:1; }
+  .cell.same .notes span.hl { color:var(--text); }
+  .cell.bump { animation:bump .25s cubic-bezier(.3,1.6,.5,1); }
+  .cell.shake { animation:shake .35s; }
+  @keyframes bump { 0%{transform:scale(.7)} 100%{transform:scale(1.04)} }
+  @keyframes shake { 0%,100%{translate:0} 20%{translate:-4px} 40%{translate:4px} 60%{translate:-3px} 80%{translate:3px} }
+  .board.win .cell { animation:wave .7s ease both; animation-delay:calc(var(--d) * 45ms); }
+  @keyframes wave { 0%{transform:scale(1)} 40%{transform:scale(1.14); background:var(--primary); color:var(--onPrimary)} 100%{transform:scale(1)} }
+  .spinner { position:absolute; inset:0; display:none; place-items:center; pointer-events:none; }
+  .board.loading + .spinner { display:grid; }
+  .spinner b { width:44px; height:44px; border-radius:50%; border:5px solid var(--pc); border-top-color:var(--primary); animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg) } }
+
+  /* ===== Controls ===== */
+  .controls { grid-area:controls; display:flex; flex-direction:column; gap:14px; }
+  .tools { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .tool { height:56px; border-radius:20px; background:var(--tonal); display:flex; align-items:center; justify-content:center; gap:6px; font-weight:600; font-size:15px; position:relative; white-space:nowrap; min-width:0; transition:background .2s, color .2s, transform .1s; }
+  .tool:active { transform:scale(.95); }
+  .tool:hover { background:color-mix(in srgb, var(--tonal) 85%, var(--primary)); }
+  .tool .ico { width:22px; height:22px; }
+  .tool.active { background:var(--primary); color:var(--onPrimary); }
+  .tool .tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:99px; background:color-mix(in srgb, currentColor 18%, transparent); }
+  .pad { display:grid; grid-template-columns:repeat(9,1fr); gap:8px 7px; padding-top:6px; }
+  .num { height:60px; border-radius:16px; background:var(--pc); color:var(--onPc); display:flex; align-items:center; justify-content:center; position:relative; transition:transform .1s, opacity .2s, background .2s; }
+  .num:hover { background:color-mix(in srgb, var(--pc) 80%, var(--primary)); }
+  .num:active { transform:scale(.9); }
+  .num b { font-size:24px; font-weight:700; line-height:1.1; }
+  .num small { position:absolute; top:-7px; right:-5px; min-width:18px; height:18px; padding:0 4px; border-radius:99px; background:var(--primary); color:var(--onPrimary); font-size:11px; font-weight:700; line-height:18px; text-align:center; box-shadow:0 0 0 2px var(--bg); pointer-events:none; }
+  .num small:empty { display:none; }
+  .num:disabled { opacity:.28; cursor:default; transform:none; }
+  .pad.notesOn .num { background:var(--sc); color:var(--onSc); }
+  .pad.notesOn .num b { font-size:20px; font-weight:500; }
+  .chips { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:4px; }
+  .chip { height:44px; padding:0 20px; border-radius:14px; border:1.5px solid var(--outline); font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px; transition:background .2s, border-color .2s, transform .1s; }
+  .chip:hover { background:color-mix(in srgb, var(--text) 6%, transparent); }
+  .chip:active { transform:scale(.95); }
+  .chip.on { background:var(--sc); border-color:transparent; color:var(--onSc); padding-left:14px; }
+  .chip .ico { width:20px; height:20px; stroke-width:2.6; }
+  .hint { text-align:center; color:var(--textVar); font-size:14px; line-height:2; margin-top:2px; }
+  .kbd { display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; padding:0 6px; border:1px solid var(--outline); border-radius:7px; font-size:12px; margin:0 1px; vertical-align:1px; background:color-mix(in srgb, var(--surf) 60%, transparent); }
+
+  @media (min-width:900px) {
+    .app { max-width:1040px; padding-top:20px; }
+    .title h2 { font-size:56px; }
+    .layout { grid-template-columns:minmax(0,580px) minmax(340px,1fr); column-gap:56px; row-gap:20px; grid-template-areas:"board title" "board stats" "board controls"; grid-template-rows:auto auto 1fr; align-items:start; }
+    .controls { align-self:start; }
+  }
+
+  /* ===== Dialog / Toast ===== */
+  dialog { border:none; border-radius:28px; background:var(--surfHi); color:var(--text); padding:24px 24px 16px; width:360px; max-width:calc(100% - 32px); box-shadow:0 12px 40px rgba(0,0,0,.3); }
+  dialog[open] { animation:dlg .25s cubic-bezier(.2,.9,.3,1.1); }
+  dialog::backdrop { background:rgba(0,0,0,.42); animation:fade .25s; }
+  @keyframes dlg { from{opacity:0; transform:scale(.88)} to{opacity:1; transform:none} }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  dialog h3 { margin:0 0 12px; font-size:24px; font-weight:600; }
+  dialog .body { color:var(--textVar); font-size:15px; line-height:1.7; }
+  dialog .body ul { margin:0; padding-left:20px; }
+  dialog .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; }
+  dialog .actions button { height:40px; padding:0 20px; border-radius:99px; font-weight:600; font-size:14px; color:var(--primary); }
+  dialog .actions button:hover { background:color-mix(in srgb, var(--primary) 10%, transparent); }
+  dialog .actions button.primary { background:var(--primary); color:var(--onPrimary); }
+  dialog .actions button.primary:hover { filter:brightness(1.1); background:var(--primary); }
+  .big { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0 4px; text-align:center; }
+  .big div { background:var(--pc); color:var(--onPc); border-radius:18px; padding:10px 4px; }
+  .big b { display:block; font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .big span { font-size:12px; font-weight:600; opacity:.75; }
+  .meta { margin-top:18px; }
+  .rec { color:var(--primary); font-weight:700; margin-top:10px; }
+  footer.copy { text-align:center; color:var(--textVar); font-size:13px; padding:4px 20px max(28px, env(safe-area-inset-bottom)); opacity:.9; }
+  footer.copy a { color:var(--primary); font-weight:600; text-decoration:none; border-radius:6px; padding:2px 3px; transition:background .2s; }
+  footer.copy a:hover { background:color-mix(in srgb, var(--primary) 12%, transparent); text-decoration:underline; }
+  table.st { width:100%; border-collapse:collapse; font-size:15px; }
+  table.st th, table.st td { padding:9px 6px; text-align:center; }
+  table.st th { color:var(--textVar); font-weight:600; font-size:13px; border-bottom:1px solid var(--outlineV); }
+  table.st td:first-child { font-weight:700; color:var(--text); }
+  #toast { position:fixed; left:50%; bottom:max(24px,env(safe-area-inset-bottom)); transform:translate(-50%,30px); background:var(--text); color:var(--bg); padding:13px 22px; border-radius:14px; font-size:14px; opacity:0; pointer-events:none; transition:.25s; z-index:60; max-width:calc(100% - 32px); width:max-content; text-align:center; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+  @media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms !important; transition-duration:.01ms !important;} }
+</style>
+<style>
+@font-face {
+    font-family: 'Nebulove';
+    src: url('https://nebulove.92li.uk/Nebulove.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hwrap">
+    <div class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="brand"><h1>YiDoku</h1><span class="badge">Web</span></div>
+    <button class="hbtn" id="btnTheme" aria-label="切换深色/浅色模式"></button>
+    <button class="hbtn" id="btnPalette" aria-label="切换配色">
+      <svg class="ico fill" viewBox="0 0 24 24"><path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+    </button>
+    <button class="hbtn" id="btnMenu" aria-label="菜单">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+
+    <div class="pop" id="popPalette">
+      <h4>选择配色</h4>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="pop" id="popMenu">
+      <button class="item" data-act="new"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>新游戏</button>
+      <button class="item" data-act="stats"><svg class="ico" viewBox="0 0 24 24"><path d="M5 21V10M12 21V4M19 21v-7"/></svg>游戏统计</button>
+      <button class="item" data-act="rules"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 1 1 3.6 2.4c-.7.4-1.1.9-1.1 1.8M12 17h.01"/></svg>游戏规则</button>
+      <button class="item" data-act="reset"><svg class="ico" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>清除所有数据</button>
+    </div>
+  </div>
+</header>
+
+<main class="app">
+  <div class="layout">
+    <div class="title"><h2>数独</h2><small id="diffLabel">简单 · 9×9</small></div>
+
+    <div class="stats">
+      <div class="card a"><div class="l">用时</div><div class="v" id="timer">00:00</div></div>
+      <div class="card b"><div class="l">错误</div><div class="v" id="mistakes">0</div></div>
+      <button class="round tonal" id="btnUndo" aria-label="撤销" disabled>
+        <svg class="ico" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+      </button>
+      <button class="round fill" id="btnNew" aria-label="新游戏">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+      </button>
+    </div>
+
+    <div class="boardWrap">
+      <div class="board" id="board" role="grid" aria-label="数独棋盘"></div>
+      <div class="spinner"><b></b></div>
+    </div>
+
+    <div class="controls">
+      <div class="tools">
+        <button class="tool" id="btnErase"><svg class="ico" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>擦除</button>
+        <button class="tool" id="btnNotes"><svg class="ico" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>笔记<span class="tag" id="notesTag">关</span></button>
+        <button class="tool" id="btnHint"><svg class="ico" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>提示<span class="tag" id="hintTag" hidden>0</span></button>
+      </div>
+      <div class="pad" id="pad"></div>
+      <div class="chips" id="chips"></div>
+      <div class="hint">
+        点击格子后选择数字，或使用
+        <span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> /
+        <span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> 移动选择<br>
+        数字键 <span class="kbd">1-9</span> 填入，<span class="kbd">N</span> 笔记，<span class="kbd">H</span> 提示，<span class="kbd">Z</span> 撤销<br>
+        每行、每列、每个 3×3 宫格内，数字 1–9 不重复
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="copy">
+  Copyright © <span id="year">2025</span> <a href="https://github.com/lingyicute" target="_blank" rel="noopener noreferrer">lingyicute</a> ❤️
+</footer>
+<script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+
+<dialog id="dlg"><h3 id="dlgTitle"></h3><div class="body" id="dlgBody"></div><div class="actions" id="dlgActions"></div></dialog>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- 工具 ---------- */
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('yidoku:' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('yidoku:' + k, JSON.stringify(v)); } catch {} },
+  clear() { try { Object.keys(localStorage).filter(k => k.startsWith('yidoku:')).forEach(k => localStorage.removeItem(k)); } catch {} }
+};
+const ICON = {
+  moon: '<svg class="ico fill" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  sun: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2 12h2.5M19.5 12H22M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
+  check: '<svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>'
+};
+const DIFFS = {
+  easy:   { name: '简单', clues: 40 },
+  medium: { name: '中等', clues: 32 },
+  hard:   { name: '困难', clues: 28 },
+  expert: { name: '专家', clues: 24 }
+};
+const PALETTES = [
+  { id: 'purple', name: '薰衣草紫', h: 257 },
+  { id: 'blue',   name: '天空蓝', h: 215 },
+  { id: 'teal',   name: '湖青', h: 180 },
+  { id: 'green',  name: '梨绿', h: 140 },
+  { id: 'yellow', name: '琥珀黄', h: 46 },
+  { id: 'orange', name: '落日橙', h: 20 },
+  { id: 'pink',   name: '樱花粉', h: 335 },
+  { id: 'red',    name: '玫瑰红', h: 355 }
+];
+const fmt = s => {
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  const p = n => String(n).padStart(2, '0');
+  return (h ? h + ':' : '') + p(m) + ':' + p(ss);
+};
+
+/* ---------- 主题 (Material You 风格动态配色) ---------- */
+let mode = store.get('mode', null) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+let palId = store.get('palette', 'purple');
+const hsl = (h, s, l) => `hsl(${((h % 360) + 360) % 360} ${s}% ${l}%)`;
+
+function applyTheme() {
+  const pal = PALETTES.find(p => p.id === palId) || PALETTES[0];
+  const h = pal.h, dark = mode === 'dark';
+  const t = dark ? {
+    bg: hsl(h,15,8), surf: hsl(h,12,13), surfHi: hsl(h,12,18), tonal: hsl(h,10,22),
+    primary: hsl(h,75,80), onPrimary: hsl(h,55,20), pc: hsl(h,36,30), onPc: hsl(h,80,90),
+    sc: hsl(h,18,29), onSc: hsl(h,30,90),
+    text: hsl(h,15,91), textVar: hsl(h,10,76), outline: hsl(h,6,58), outlineV: hsl(h,8,30),
+    err: '#ffb4ab', errC: '#93000a', onErrC: '#ffdad6',
+    board: hsl(h,14,17), cell: hsl(h,12,23), given: hsl(h,20,30), peer: hsl(h,26,35), same: hsl(h,38,43)
+  } : {
+    bg: hsl(h,40,98), surf: hsl(h,22,94), surfHi: hsl(h,26,93), tonal: hsl(h,10,89),
+    primary: hsl(h,38,40), onPrimary: '#ffffff', pc: hsl(h,72,91), onPc: hsl(h,80,14),
+    sc: hsl(h,26,88), onSc: hsl(h,30,15),
+    text: hsl(h,25,10), textVar: hsl(h,12,30), outline: hsl(h,10,47), outlineV: hsl(h,15,80),
+    err: '#ba1a1a', errC: '#ffdad6', onErrC: '#410002',
+    board: hsl(h,16,79), cell: hsl(h,55,98), given: hsl(h,38,92), peer: hsl(h,62,87), same: hsl(h,62,76)
+  };
+  const root = document.documentElement;
+  Object.entries(t).forEach(([k, v]) => root.style.setProperty('--' + k, v));
+  root.style.colorScheme = dark ? 'dark' : 'light';
+  document.querySelector('meta[name=theme-color]').content = t.bg;
+  $('#btnTheme').innerHTML = dark ? ICON.sun : ICON.moon;
+  $('#btnTheme').title = dark ? '切换到浅色模式' : '切换到深色模式';
+  document.querySelectorAll('.sw').forEach(el => el.classList.toggle('sel', el.dataset.id === palId));
+}
+
+/* ---------- 数独核心 ---------- */
+const ROW = [], COL = [], BOX = [];
+for (let i = 0; i < 81; i++) { ROW[i] = Math.floor(i / 9); COL[i] = i % 9; BOX[i] = Math.floor(ROW[i] / 3) * 3 + Math.floor(COL[i] / 3); }
+const POP = new Array(1024).fill(0).map((_, n) => { let c = 0; while (n) { c += n & 1; n >>= 1; } return c; });
+const isPeer = (a, b) => a !== b && (ROW[a] === ROW[b] || COL[a] === COL[b] || BOX[a] === BOX[b]);
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+function search(grid, limit, rand) {
+  const g = grid.slice(), rows = Array(9).fill(0), cols = Array(9).fill(0), boxes = Array(9).fill(0);
+  for (let i = 0; i < 81; i++) if (g[i]) { const b = 1 << g[i]; rows[ROW[i]] |= b; cols[COL[i]] |= b; boxes[BOX[i]] |= b; }
+  let count = 0, solution = null;
+  const ALL = 0x3FE;
+  (function rec() {
+    let best = -1, bestMask = 0, bestN = 10;
+    for (let i = 0; i < 81; i++) {
+      if (g[i]) continue;
+      const mask = ALL & ~(rows[ROW[i]] | cols[COL[i]] | boxes[BOX[i]]);
+      const n = POP[mask];
+      if (n === 0) return false;
+      if (n < bestN) { bestN = n; best = i; bestMask = mask; if (n === 1) break; }
+    }
+    if (best < 0) { count++; if (!solution) solution = g.slice(); return count >= limit; }
+    const ds = [];
+    for (let d = 1; d <= 9; d++) if (bestMask & (1 << d)) ds.push(d);
+    if (rand) shuffle(ds);
+    const r = ROW[best], c = COL[best], b = BOX[best];
+    for (const d of ds) {
+      const bit = 1 << d;
+      g[best] = d; rows[r] |= bit; cols[c] |= bit; boxes[b] |= bit;
+      if (rec()) return true;
+      g[best] = 0; rows[r] &= ~bit; cols[c] &= ~bit; boxes[b] &= ~bit;
+    }
+    return false;
+  })();
+  return { count, solution };
+}
+
+function generate(diff) {
+  const solution = search(Array(81).fill(0), 1, true).solution;
+  const puzzle = solution.slice();
+  const target = DIFFS[diff].clues;
+  let clues = 81;
+  for (const i of shuffle([...Array(81).keys()])) {
+    if (clues <= target) break;
+    const keep = puzzle[i];
+    puzzle[i] = 0;
+    if (search(puzzle, 2, false).count !== 1) puzzle[i] = keep; else clues--;
+  }
+  return { puzzle, solution };
+}
+
+/* ---------- 状态 ---------- */
+let S = null, history = [], sel = -1, notesMode = false;
+let stats = store.get('stats', null) || { easy: { won: 0, best: null }, medium: { won: 0, best: null }, hard: { won: 0, best: null }, expert: { won: 0, best: null } };
+
+function save() { store.set('state', S); }
+function startState(diff, g) {
+  S = { diff, puzzle: g.puzzle, solution: g.solution, values: g.puzzle.slice(), notes: Array(81).fill(0), seconds: 0, mistakes: 0, hints: 0, complete: false };
+  history = []; sel = -1;
+  $('#board').classList.remove('win');
+  save(); render();
+}
+function newGame(diff) {
+  const board = $('#board');
+  board.classList.add('loading');
+  setTimeout(() => {
+    startState(diff, generate(diff));
+    board.classList.remove('loading');
+  }, 30);
+}
+const hasProgress = () => S && !S.complete && S.values.some((v, i) => v !== S.puzzle[i]);
+function requestNew(diff) {
+  diff = diff || S.diff;
+  if (hasProgress()) {
+    openDialog({ title: '开始新游戏？', body: '当前游戏进度将会丢失，确定要开始一局新的「' + DIFFS[diff].name + '」数独吗？',
+      actions: [{ label: '取消' }, { label: '开始', primary: true, fn: () => newGame(diff) }] });
+  } else newGame(diff);
+}
+
+/* ---------- 棋盘构建与渲染 ---------- */
+const board = $('#board'), cells = [];
+for (let b = 0; b < 9; b++) {
+  const box = document.createElement('div'); box.className = 'box';
+  for (let k = 0; k < 9; k++) {
+    const i = (Math.floor(b / 3) * 3 + Math.floor(k / 3)) * 9 + (b % 3) * 3 + (k % 3);
+    const el = document.createElement('div');
+    el.className = 'cell'; el.dataset.i = i; el.setAttribute('role', 'gridcell');
+    el.style.setProperty('--d', ROW[i] + COL[i]);
+    cells[i] = el; box.appendChild(el);
+  }
+  board.appendChild(box);
+}
+board.addEventListener('pointerdown', e => {
+  const c = e.target.closest('.cell'); if (!c) return;
+  sel = +c.dataset.i; render();
+});
+
+// 数字键盘
+const pad = $('#pad'), numBtns = [];
+for (let d = 1; d <= 9; d++) {
+  const b = document.createElement('button'); b.className = 'num';
+  b.innerHTML = `<b>${d}</b><small></small>`;
+  b.addEventListener('click', () => input(d));
+  numBtns[d] = b; pad.appendChild(b);
+}
+// 难度 chips
+const chipsEl = $('#chips');
+function renderChips() {
+  chipsEl.innerHTML = '';
+  Object.entries(DIFFS).forEach(([k, v]) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (S.diff === k ? ' on' : '');
+    b.innerHTML = (S.diff === k ? ICON.check : '') + v.name;
+    b.addEventListener('click', () => { if (S.diff !== k || S.complete) requestNew(k); });
+    chipsEl.appendChild(b);
+  });
+}
+
+function render() {
+  const sv = sel >= 0 ? S.values[sel] : 0;
+  for (let i = 0; i < 81; i++) {
+    const el = cells[i], v = S.values[i], given = S.puzzle[i] !== 0;
+    let cls = 'cell';
+    if (given) cls += ' given';
+    if (sel >= 0) {
+      if (i === sel) cls += ' sel';
+      else if (isPeer(sel, i)) cls += ' peer';
+      if (sv && v === sv && i !== sel) cls += ' same';
+    }
+    if (v && !given && v !== S.solution[i]) cls += ' wrong';
+    el.className = cls;
+    if (v) el.textContent = v;
+    else if (S.notes[i]) {
+      let h = '<div class="notes">';
+      for (let d = 1; d <= 9; d++) h += `<span class="${sv === d ? 'hl' : ''}">${S.notes[i] & (1 << d) ? d : ''}</span>`;
+      el.innerHTML = h + '</div>';
+    } else el.textContent = '';
+  }
+  // 数字键盘剩余
+  for (let d = 1; d <= 9; d++) {
+    let used = 0;
+    for (let i = 0; i < 81; i++) if (S.values[i] === d && S.solution[i] === d) used++;
+    const left = 9 - used;
+    numBtns[d].disabled = left <= 0 || S.complete;
+    numBtns[d].querySelector('small').textContent = left > 0 ? left : '';
+  }
+  pad.classList.toggle('notesOn', notesMode);
+  $('#btnNotes').classList.toggle('active', notesMode);
+  $('#notesTag').textContent = notesMode ? '开' : '关';
+  $('#mistakes').textContent = S.mistakes;
+  $('#timer').textContent = fmt(S.seconds);
+  $('#diffLabel').textContent = DIFFS[S.diff].name + ' · 9×9';
+  $('#btnUndo').disabled = !history.length || S.complete;
+  const ht = $('#hintTag'); ht.hidden = !S.hints; ht.textContent = S.hints;
+  renderChips();
+  if (S.complete) board.classList.add('win');
+}
+function fx(i, cls) {
+  const el = cells[i]; el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), { once: true });
+}
+
+/* ---------- 操作 ---------- */
+const push = () => { history.push({ v: S.values.slice(), n: S.notes.slice() }); if (history.length > 300) history.shift(); };
+function clearPeerNotes(i, d) {
+  const bit = ~(1 << d);
+  for (let k = 0; k < 81; k++) if (isPeer(i, k)) S.notes[k] &= bit;
+}
+function after(i) {
+  render(); save();
+  if (S.values.every((v, k) => v === S.solution[k])) win();
+}
+function input(d) {
+  if (S.complete) return;
+  if (sel < 0) return toast('请先选择一个格子');
+  const i = sel;
+  if (S.puzzle[i]) return;
+  if (notesMode) {
+    if (S.values[i]) return toast('该格已填入数字，请先擦除');
+    push(); S.notes[i] ^= (1 << d); after(i); return;
+  }
+  if (S.values[i] === d) return erase();
+  push();
+  S.values[i] = d; S.notes[i] = 0;
+  const ok = d === S.solution[i];
+  if (ok) clearPeerNotes(i, d); else S.mistakes++;
+  after(i);
+  if (!S.complete) fx(i, ok ? 'bump' : 'shake');
+}
+function erase() {
+  if (S.complete || sel < 0 || S.puzzle[sel]) return;
+  if (!S.values[sel] && !S.notes[sel]) return;
+  push(); S.values[sel] = 0; S.notes[sel] = 0; after(sel);
+}
+function undo() {
+  if (S.complete || !history.length) return;
+  const h = history.pop(); S.values = h.v; S.notes = h.n; render(); save();
+}
+function hint() {
+  if (S.complete) return;
+  let i = sel;
+  if (i < 0 || S.puzzle[i] || S.values[i] === S.solution[i]) {
+    const c = [];
+    for (let k = 0; k < 81; k++) if (S.values[k] !== S.solution[k]) c.push(k);
+    if (!c.length) return;
+    i = c[Math.random() * c.length | 0];
+  }
+  push();
+  S.values[i] = S.solution[i]; S.notes[i] = 0; clearPeerNotes(i, S.solution[i]);
+  S.hints++; sel = i;
+  after(i);
+  if (!S.complete) fx(i, 'bump');
+}
+function move(dr, dc) {
+  if (sel < 0) { sel = 40; } else {
+    const r = Math.min(8, Math.max(0, ROW[sel] + dr)), c = Math.min(8, Math.max(0, COL[sel] + dc));
+    sel = r * 9 + c;
+  }
+  render();
+}
+function win() {
+  S.complete = true; sel = -1;
+  const st = stats[S.diff]; st.won++;
+  const record = st.best == null || S.seconds < st.best;
+  if (record) st.best = S.seconds;
+  store.set('stats', stats); save(); render();
+  setTimeout(() => openDialog({
+    title: '🎉 恭喜完成！',
+    body: `<div class="big"><div><b>${fmt(S.seconds)}</b><span>用时</span></div><div><b>${S.mistakes}</b><span>错误</span></div><div><b>${S.hints}</b><span>提示</span></div></div>
+      <div class="meta">难度：${DIFFS[S.diff].name}　最佳用时：${fmt(st.best)}</div>${record ? '<div class="rec">✨ 新纪录！</div>' : ''}`,
+    actions: [{ label: '关闭' }, { label: '再来一局', primary: true, fn: () => newGame(S.diff) }]
+  }), 900);
+}
+
+/* ---------- 对话框 / Toast ---------- */
+const dlg = $('#dlg');
+function openDialog({ title, body, actions }) {
+  $('#dlgTitle').textContent = title;
+  $('#dlgBody').innerHTML = body;
+  const box = $('#dlgActions'); box.innerHTML = '';
+  actions.forEach(a => {
+    const b = document.createElement('button');
+    b.textContent = a.label; if (a.primary) b.className = 'primary';
+    b.onclick = () => { dlg.close(); a.fn && a.fn(); };
+    box.appendChild(b);
+  });
+  if (!dlg.open) dlg.showModal();
+}
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* ---------- 弹出菜单 ---------- */
+const pops = { palette: $('#popPalette'), menu: $('#popMenu') };
+function togglePop(name) {
+  Object.entries(pops).forEach(([k, el]) => el.classList.toggle('open', k === name && !el.classList.contains('open')));
+}
+$('#btnPalette').addEventListener('click', e => { e.stopPropagation(); togglePop('palette'); });
+$('#btnMenu').addEventListener('click', e => { e.stopPropagation(); togglePop('menu'); });
+document.addEventListener('click', e => { if (!e.target.closest('.pop')) togglePop(null); });
+
+const sws = $('#swatches');
+PALETTES.forEach(p => {
+  const b = document.createElement('button'); b.className = 'sw'; b.dataset.id = p.id;
+  b.innerHTML = `<span class="c" style="background:linear-gradient(135deg, ${hsl(p.h,38,40)} 50%, ${hsl(p.h,72,82)} 50%)"><svg class="ico" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>${p.name}`;
+  b.addEventListener('click', () => { palId = p.id; store.set('palette', palId); applyTheme(); });
+  sws.appendChild(b);
+});
+$('#btnTheme').addEventListener('click', () => { mode = mode === 'dark' ? 'light' : 'dark'; store.set('mode', mode); applyTheme(); });
+
+$('#popMenu').addEventListener('click', e => {
+  const it = e.target.closest('.item'); if (!it) return;
+  togglePop(null);
+  const act = it.dataset.act;
+  if (act === 'new') requestNew();
+  else if (act === 'rules') openDialog({ title: '游戏规则', body: `<ul>
+      <li>在 9×9 的棋盘中填入数字 1–9。</li>
+      <li>每一行、每一列、每个粗分隔的 3×3 宫格内，数字都不能重复。</li>
+      <li>灰紫底色的数字是题目给定的，不可修改。</li>
+      <li>开启「笔记」后，可在格子里记录候选数字。</li>
+      <li>填错的数字会标红，并计入错误次数。</li>
+      <li>「提示」会自动填入一个正确数字。</li></ul>`, actions: [{ label: '知道了', primary: true }] });
+  else if (act === 'stats') openDialog({ title: '游戏统计', body:
+      '<table class="st"><tr><th>难度</th><th>完成局数</th><th>最佳用时</th></tr>' +
+      Object.entries(DIFFS).map(([k, v]) => `<tr><td>${v.name}</td><td>${stats[k].won}</td><td>${stats[k].best == null ? '—' : fmt(stats[k].best)}</td></tr>`).join('') + '</table>',
+      actions: [{ label: '关闭', primary: true }] });
+  else if (act === 'reset') openDialog({ title: '清除所有数据？', body: '将清除当前游戏、统计数据以及主题设置，且无法恢复。',
+      actions: [{ label: '取消' }, { label: '清除', primary: true, fn: () => {
+        store.clear(); stats = { easy:{won:0,best:null}, medium:{won:0,best:null}, hard:{won:0,best:null}, expert:{won:0,best:null} };
+        palId = 'purple'; applyTheme(); newGame('easy'); toast('已清除所有数据');
+      } }] });
+});
+
+/* ---------- 按钮与键盘 ---------- */
+$('#btnUndo').addEventListener('click', undo);
+$('#btnNew').addEventListener('click', () => requestNew());
+$('#btnErase').addEventListener('click', erase);
+$('#btnHint').addEventListener('click', hint);
+$('#btnNotes').addEventListener('click', () => { notesMode = !notesMode; render(); });
+
+document.addEventListener('keydown', e => {
+  if (dlg.open || e.altKey) return;
+  const k = e.key;
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey) return;
+  if (/^[1-9]$/.test(k)) { input(+k); return; }
+  const lk = k.toLowerCase();
+  if (k === 'Backspace' || k === 'Delete' || k === '0') { e.preventDefault(); erase(); }
+  else if (k === 'ArrowUp' || lk === 'w') { e.preventDefault(); move(-1, 0); }
+  else if (k === 'ArrowDown' || lk === 's') { e.preventDefault(); move(1, 0); }
+  else if (k === 'ArrowLeft' || lk === 'a') { e.preventDefault(); move(0, -1); }
+  else if (k === 'ArrowRight' || lk === 'd') { e.preventDefault(); move(0, 1); }
+  else if (lk === 'n') { notesMode = !notesMode; render(); }
+  else if (lk === 'h') hint();
+  else if (lk === 'z' || lk === 'u') undo();
+  else if (k === 'Escape') { sel = -1; togglePop(null); render(); }
+});
+
+/* ---------- 计时器 ---------- */
+let tick = 0;
+setInterval(() => {
+  if (!S || S.complete || document.hidden || board.classList.contains('loading')) return;
+  S.seconds++;
+  $('#timer').textContent = fmt(S.seconds);
+  if (++tick % 5 === 0) save();
+}, 1000);
+document.addEventListener('visibilitychange', () => { if (document.hidden && S) save(); });
+window.addEventListener('beforeunload', () => { if (S) save(); });
+
+/* ---------- 窄屏等比缩放：以 400px 为基准宽度 ---------- */
+const BASE_W = 400;
+function fitScale() {
+  const w = document.documentElement.clientWidth || innerWidth;
+  const z = Math.min(1, w / BASE_W);
+  document.documentElement.style.zoom = z < 1 ? z.toFixed(4) : '';
+}
+fitScale();
+addEventListener('resize', fitScale);
+addEventListener('orientationchange', fitScale);
+
+/* ---------- 初始化 ---------- */
+applyTheme();
+const saved = store.get('state', null);
+if (saved && Array.isArray(saved.values) && saved.values.length === 81 && Array.isArray(saved.solution) && DIFFS[saved.diff]) {
+  S = saved; render();
+} else {
+  startState('easy', generate('easy'));
+}
+})();
+</script>
+</body>
+</html>
