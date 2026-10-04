@@ -31,7 +31,7 @@
 
 Most sudoku sites fall into one of two camps: ad-stuffed portals that want an account before you can place a digit, or rigid grid pages that only know how to serve one fixed puzzle with no notes, no hints and no memory of what you were doing.
 
-**YiDoku** takes the privacy-first, fully offline approach my H5 game family is known for. It is a complete sudoku implementation — generator, solver, pencil marks, hints, undo, statistics — shipped as **one self-contained HTML file**. Nothing is fetched from a server, nothing is tracked, and the whole game (down to the embedded typeface) works with the network switched off.
+**YiDoku** takes the privacy-first, fully offline approach my H5 game series is known for. It is a complete sudoku implementation — generator, solver, pencil marks, hints, undo, statistics — shipped as **one self-contained HTML file**. Nothing is fetched from a server, nothing is tracked, and the whole game (down to the embedded typeface) works with the network switched off.
 
 <br>
 
@@ -104,6 +104,8 @@ python3 -m http.server 8000     # then open http://localhost:8000
 
 ### Option 3 — Publish it anywhere
 Drop `index.html` on GitHub Pages, Cloudflare Pages, Netlify, Vercel, a static bucket or your own nginx — a single file is the entire deployment, and there is no build output to configure.
+
+<br>
 
 ## 🔨 Building from Source
 
