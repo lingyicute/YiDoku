@@ -57,8 +57,8 @@
   .pop .item:hover { background:color-mix(in srgb, var(--primary) 10%, transparent); }
   .pop .item .ico { width:22px; height:22px; color:var(--textVar); }
   .pop h4 { margin:6px 10px 10px; font-size:13px; font-weight:600; color:var(--textVar); }
-  .swatches { display:grid; grid-template-columns:repeat(4,1fr); gap:10px 8px; padding:0 6px 6px; width:260px; }
-  .sw { display:flex; flex-direction:column; align-items:center; gap:4px; font-size:12px; color:var(--textVar); }
+  .swatches { display:grid; grid-template-columns:repeat(4,1fr); gap:16px 8px; padding:6px 6px 6px; width:260px; }
+  .sw { display:flex; flex-direction:column; align-items:center; gap:10px; font-size:12px; color:var(--textVar); }
   .sw span.c { width:48px; height:48px; border-radius:50%; display:grid; place-items:center; color:#fff; transition:transform .15s, box-shadow .15s; }
   .sw:hover span.c { transform:scale(1.07); }
   .sw.sel span.c { box-shadow:0 0 0 3px var(--surfHi), 0 0 0 5px var(--primary); }
@@ -155,6 +155,10 @@
   dialog { border:none; border-radius:28px; background:var(--surfHi); color:var(--text); padding:24px 24px 16px; width:360px; max-width:calc(100% - 32px); box-shadow:0 12px 40px rgba(0,0,0,.3); }
   dialog[open] { animation:dlg .25s cubic-bezier(.2,.9,.3,1.1); }
   dialog::backdrop { background:rgba(0,0,0,.42); animation:fade .25s; }
+  /* 背景模糊：不依赖 ::backdrop 上的 backdrop-filter（部分浏览器不支持），
+     改为对页面主体使用 filter，兼容性更好 */
+  body > header, body > main, body > footer { transition:filter .25s; }
+  body.dlg-open > header, body.dlg-open > main, body.dlg-open > footer { filter:blur(4px); }
   @keyframes dlg { from{opacity:0; transform:scale(.88)} to{opacity:1; transform:none} }
   @keyframes fade { from{opacity:0} to{opacity:1} }
   dialog h3 { margin:0 0 12px; font-size:24px; font-weight:600; }
@@ -602,8 +606,12 @@ function openDialog({ title, body, actions }) {
     b.onclick = () => { dlg.close(); a.fn && a.fn(); };
     box.appendChild(b);
   });
-  if (!dlg.open) dlg.showModal();
+  if (!dlg.open) {
+    document.body.classList.add('dlg-open');
+    dlg.showModal();
+  }
 }
+dlg.addEventListener('close', () => document.body.classList.remove('dlg-open'));
 dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
 let toastTimer;
 function toast(msg) {
