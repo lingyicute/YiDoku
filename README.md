@@ -6,7 +6,7 @@
   <img src="./assets/icon.png" alt="YiDoku Logo" width="96" height="96" onerror="this.style.display='none'"/>
 </p>
 <h1 align="center">YiDoku</h1>
-<h3 align="center">Just another sudoku, simple yet focused.</h3>
+<h3 align="center">One box. Nine numbers. Pure concentration.</h3>
 
 <p align="center">A clean, lightweight, and privacy-first sudoku game, crafted with Material You and modern web engineering.</p>
 <p align="center">Made with ❤️ by <a href="https://github.com/lingyicute">lingyicute</a>.</p>
@@ -39,7 +39,7 @@ Most sudoku sites fall into one of two camps: ad-stuffed portals that want an ac
 
 - **🧩 Real Sudoku, Generated on Demand**
   - Puzzles are built live by a bitmask solver with an **MRV heuristic**, never pulled from a fixed list.
-  - Every clue is removed only while a uniqueness check still reports **exactly one solution**. This guarantees a unique answer, not that a particular set of human solving techniques will suffice.
+  - Every clue is removed only while a uniqueness check still reports **exactly one solution**. This guarantees a unique answer.
   - New grids appear in milliseconds, which makes "restart" and difficulty-hopping effortless.
 
 - **🎚️ Four Difficulty Tiers**
