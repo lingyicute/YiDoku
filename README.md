@@ -39,11 +39,11 @@ Most sudoku sites fall into one of two camps: ad-stuffed portals that want an ac
 
 - **🧩 Real Sudoku, Generated on Demand**
   - Puzzles are built live by a bitmask solver with an **MRV heuristic**, never pulled from a fixed list.
-  - Every clue is removed only while a uniqueness check still reports **exactly one solution** — so every puzzle is solvable by logic, never by guessing.
+  - Every clue is removed only while a uniqueness check still reports **exactly one solution**. This guarantees a unique answer, not that a particular set of human solving techniques will suffice.
   - New grids appear in milliseconds, which makes "restart" and difficulty-hopping effortless.
 
 - **🎚️ Four Difficulty Tiers**
-  - **简单 Easy** (40 clues), **中等 Medium** (32), **困难 Hard** (28), **专家 Expert** (24).
+  - Target clue counts: **简单 Easy** (40), **中等 Medium** (32), **困难 Hard** (28), **专家 Expert** (24). The generator may retain more clues to preserve uniqueness; these tiers are not human-technique difficulty ratings.
   - Switch tiers from the chips below the board; progress in the current game is protected by a confirmation dialog.
 
 - **✍️ The Quality-of-Life Features You Actually Want**
@@ -61,7 +61,7 @@ Most sudoku sites fall into one of two camps: ad-stuffed portals that want an ac
 
 - **🎨 Material You & Polished Design**
   - **Dynamic theming in the browser**: pick one of **eight accent hues**, and a full Material token set — surfaces, containers, primary, outlines, error roles, board and cell colours — is derived from it.
-  - **Day / Night mode** (system, light or dark) with the initial choice taken from `prefers-color-scheme` and `<meta name="theme-color">` kept in sync for mobile browser chrome.
+  - **Day / Night mode** follows `prefers-color-scheme`, including live system changes, until the theme button saves an explicit light/dark choice. Clearing app data restores system mode. `<meta name="theme-color">` stays in sync for mobile browser chrome.
   - Optional motion, fully respectful of `prefers-reduced-motion`.
 
 - **🔒 100% Privacy, Offline & Ad-Free**
@@ -120,6 +120,29 @@ There is no build step: `index.html` is the source *and* the artifact.
 2. **Edit and reload** — open `index.html` in your editor of choice and refresh the browser. The file is organised with banner comments (`/* ---------- 数独核心 ---------- */`, `/* ---------- 状态 ---------- */`, …) so the solver, the state layer and the render layer are easy to find.
 
 3. **Ship it** — commit and push. If GitHub Pages is enabled for the repository, the new build is live as soon as the branch updates.
+
+<br>
+
+## 🧪 Regression Tests
+
+The game still has **no runtime dependencies or build step**. Test tooling is development-only (Node.js 20+ and Python 3):
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+npm test
+npm run test:font
+```
+
+The JavaScript tests cover seeded puzzle generation at all four levels, solution uniqueness, save validation, and Chromium interactions loaded directly from `file://` (keyboard/popup isolation, theme changes, on-screen keypad controls, undo, resume, wins, timers, storage denial, and narrow screens). Python tests use mocked font conversion/downloads and need no third-party modules or network access.
+
+To test only the Sudoku engine without installing browser tooling:
+
+```bash
+node --test tests/engine.test.cjs
+```
+
+To check real font subsetting, install `fonttools brotli` and run `python3 scripts/subset_font.py --check`. This leaves both the HTML and subset artifact untouched; `--ttf /path/to/font.woff2` avoids downloading the source font.
 
 <br>
 

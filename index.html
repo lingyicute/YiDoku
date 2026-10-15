@@ -56,7 +56,8 @@
     box-shadow:0 8px 28px rgba(0,0,0,.2); opacity:0; transform:scale(.9) translateY(-8px); transform-origin:top right; pointer-events:none; visibility:hidden; transition:opacity .18s, transform .18s; z-index:30; }
   .pop.open { visibility:visible; opacity:1; transform:none; pointer-events:auto; }
   .pop .item { display:flex; align-items:center; gap:14px; width:100%; padding:12px 14px; border-radius:14px; font-size:15px; font-weight:500; text-align:left; }
-  .pop .item:hover { background:color-mix(in srgb, var(--primary) 10%, transparent); }
+  .pop .item:not(:disabled):hover { background:color-mix(in srgb, var(--primary) 10%, transparent); }
+  .pop .item:disabled { opacity:.38; cursor:default; }
   .pop .item .ico { width:22px; height:22px; color:var(--textVar); }
   .pop h4 { margin:6px 10px 10px; font-size:13px; font-weight:600; color:var(--textVar); }
   .swatches { display:grid; grid-template-columns:repeat(4,1fr); gap:16px 8px; padding:6px 6px 6px; width:260px; }
@@ -316,13 +317,18 @@ const fmt = s => {
 };
 
 /* ---------- 主题 (Material You 风格动态配色) ---------- */
-let mode = store.get('mode', null) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+let mode = store.get('mode', 'system');
+if (!['system', 'light', 'dark'].includes(mode)) mode = 'system';
 let palId = store.get('palette', 'purple');
+if (!PALETTES.some(p => p.id === palId)) palId = PALETTES[0].id;
+const isDark = () => mode === 'dark' || (mode === 'system' && systemTheme.matches);
+systemTheme.addEventListener('change', () => { if (mode === 'system') applyTheme(); });
 const hsl = (h, s, l) => `hsl(${((h % 360) + 360) % 360} ${s}% ${l}%)`;
 
 function applyTheme() {
   const pal = PALETTES.find(p => p.id === palId) || PALETTES[0];
-  const h = pal.h, dark = mode === 'dark';
+  const h = pal.h, dark = isDark();
   const t = dark ? {
     bg: hsl(h,15,8), surf: hsl(h,12,13), surfHi: hsl(h,12,18), tonal: hsl(h,10,22),
     primary: hsl(h,75,80), onPrimary: hsl(h,55,20), pc: hsl(h,36,30), onPc: hsl(h,80,90),
@@ -554,7 +560,10 @@ function render() {
     let used = 0;
     for (let i = 0; i < 81; i++) if (S.values[i] === d && S.solution[i] === d) used++;
     const left = 9 - used;
-    numBtns[d].disabled = left <= 0 || S.complete || generating;
+    // 九个数字已填齐时仍允许点按移除当前数字/笔记，与实体键盘一致。
+    const removable = sel >= 0 && !S.puzzle[sel] &&
+      (notesMode ? !!(S.notes[sel] & (1 << d)) : sv === d);
+    numBtns[d].disabled = (left <= 0 && !removable) || S.complete || generating;
     numBtns[d].querySelector('small').textContent = left > 0 ? left : '';
   }
   pad.classList.toggle('notesOn', notesMode);
@@ -566,6 +575,8 @@ function render() {
   $('#diffLabel').textContent = DIFFS[S.diff].name + ' · 9×9';
   $('#btnUndo').disabled = !history.length || S.complete || generating;
   $('#btnNew').disabled = generating;
+  // 菜单入口同样锁定，防止清除数据后待执行的生成任务又写回旧难度。
+  for (const act of ['new', 'reset']) $(`#popMenu [data-act="${act}"]`).disabled = generating;
   for (const id of ['#btnErase', '#btnHint', '#btnNotes']) $(id).disabled = S.complete || generating;
   const ht = $('#hintTag'); ht.hidden = !S.hints; ht.textContent = S.hints;
   renderChips();
@@ -700,6 +711,9 @@ function togglePop(name) {
 $('#btnPalette').addEventListener('click', e => { e.stopPropagation(); togglePop('palette'); });
 $('#btnMenu').addEventListener('click', e => { e.stopPropagation(); togglePop('menu'); });
 document.addEventListener('click', e => { if (!e.target.closest('.pop')) togglePop(null); });
+document.addEventListener('focusin', e => {
+  if (!e.target.closest('.pop') && !Object.values(popButtons).some(b => b.contains(e.target))) togglePop(null);
+});
 
 const sws = $('#swatches');
 PALETTES.forEach(p => {
@@ -708,7 +722,7 @@ PALETTES.forEach(p => {
   b.addEventListener('click', () => { palId = p.id; store.set('palette', palId); applyTheme(); });
   sws.appendChild(b);
 });
-$('#btnTheme').addEventListener('click', () => { mode = mode === 'dark' ? 'light' : 'dark'; store.set('mode', mode); applyTheme(); });
+$('#btnTheme').addEventListener('click', () => { mode = isDark() ? 'light' : 'dark'; store.set('mode', mode); applyTheme(); });
 
 $('#popMenu').addEventListener('click', e => {
   const it = e.target.closest('.item'); if (!it) return;
@@ -730,7 +744,7 @@ $('#popMenu').addEventListener('click', e => {
       actions: [{ label: '取消' }, { label: '清除', primary: true, fn: () => {
         store.clear(); stats = freshStats();
         palId = 'purple';
-        mode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        mode = 'system';
         applyTheme(); newGame('easy'); toast('已清除所有数据');
       } }] });
 });
@@ -746,6 +760,11 @@ document.addEventListener('keydown', e => {
   if (generating || dlg.open || e.altKey || e.isComposing) return;
   if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
   const k = e.key;
+  // 菜单和配色弹层拥有键盘交互；不能让快捷键穿透到棋盘。
+  if (Object.values(pops).some(el => el.classList.contains('open'))) {
+    if (k === 'Escape') { e.preventDefault(); togglePop(null); }
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey || e.metaKey) return;
   // 长按不应连续触发「翻转/消耗」类动作（填数会反复填擦、N 反复开关、H 连扣提示）；移动与撤销保留连发
