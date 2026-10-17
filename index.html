@@ -15,7 +15,6 @@
     --text:#1b1822; --textVar:#48435a; --outline:#7a748a; --outlineV:#cbc5d6;
     --err:#ba1a1a; --errC:#ffdad6; --onErrC:#410002;
     --board:#d5d0e1; --cell:#f7f5fc; --given:#e1dbf1; --peer:#d7cdee; --same:#b9a8e6;
-    --radius-xl:28px;
     font-family: "Nebulove","Google Sans", Roboto, "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -406,7 +405,8 @@ function search(grid, limit, rand) {
 }
 
 function generate(diff) {
-  const solution = search(Array(81).fill(0), 1, true).solution;
+  const { solution } = search(Array(81).fill(0), 1, true);
+  if (!solution) throw new Error('题目生成失败：求解器未返回完整解');
   const puzzle = solution.slice();
   const target = DIFFS[diff].clues;
   let clues = 81;
