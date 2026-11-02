@@ -21,6 +21,7 @@ PUNCT = set("：，。！？；‘’“”（）【】—…·《》×＝÷＋�
 # 匹配 @font-face 块，并连同紧邻其前的一个块注释（脚本自己生成的说明）一起吃掉，
 # 保证重复运行时注释不会越积越多。
 FONT_FACE_RE = re.compile(r'(?:/\*(?:[^*]|\*(?!/))*\*/\s*)?@font-face\s*\{[^}]*\}', re.S)
+JS_TOKEN_RE = re.compile(r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|/\*.*?\*/|//[^\r\n]*""", re.S)
 
 
 def strip_non_render_text(html):
@@ -29,16 +30,14 @@ def strip_non_render_text(html):
     html = re.sub(r'<style\b[^>]*>.*?</style>', '', html, flags=re.S | re.I)
 
     def _js(m):
-        s = re.sub(r'/\*.*?\*/', ' ', m.group(1), flags=re.S)      # 块注释
-        s = re.sub(r'(?m)^[ \t]*//.*$', ' ', s)                    # 行注释
-        return s
+        return JS_TOKEN_RE.sub(lambda t: ' ' if t.group(0).startswith('/') else t.group(0), m.group(1))
 
     return re.sub(r'<script\b[^>]*>(.*?)</script>', _js, html, flags=re.S | re.I)
 
 
 def collect_chars(html, all_text=False, extra=""):
     if all_text:
-        chars = set(html)
+        chars = set(FONT_FACE_RE.sub('', html))
     else:
         chars = set(strip_non_render_text(html))
     chars |= ASCII | PUNCT | set(extra)
@@ -98,6 +97,10 @@ def main():
 
     if not os.path.exists(args.html):
         sys.exit("找不到页面文件：%s" % args.html)
+    if args.ttf and not os.path.exists(args.ttf):
+        sys.exit("找不到字体文件：%s" % args.ttf)
+    if args.extra_chars and not os.path.exists(args.extra_chars):
+        sys.exit("找不到字符文件：%s" % args.extra_chars)
     html = Path(args.html).read_text(encoding="utf-8")
     if not FONT_FACE_RE.search(html):
         sys.exit("页面里没有找到 @font-face 块，无法替换。")
@@ -120,7 +123,8 @@ def main():
         print("完整字体：%.0f KB（%s）" % (full_size / 1024, os.path.basename(ttf)))
         wofl, covered = build_subset(chars, ttf)
     missing = {c for c in chars if ord(c) not in covered}
-    print("子集：%.2f KB woff2（%.1f%% 于原字体）" % (len(wofl) / 1024, len(wofl) / full_size * 100))
+    ratio = len(wofl) / full_size * 100 if full_size else 0
+    print("子集：%.2f KB woff2（%.1f%% 于原字体）" % (len(wofl) / 1024, ratio))
     if missing:
         print("⚠️ 字体本身不含这些字符（将回退到系统字体）：%s" %
               " ".join("U+%04X" % ord(c) for c in sorted(missing)))
