@@ -82,8 +82,12 @@ test('system theme follows OS changes until the user explicitly chooses', async 
 test('invalid preferences fall back to system theme and a selected palette', async t => {
   const page = await open(t, state(), { mode: 'invalid', palette: {} });
   assert.equal(await page.locator('.sw.sel').getAttribute('data-id'), 'purple');
+  assert.equal(await page.locator('.sw[aria-pressed="true"]').getAttribute('data-id'), 'purple');
+  assert.equal(await page.locator('#btnTheme').getAttribute('aria-label'), '切换到深色模式');
+  assert.equal(await page.locator('#pad button').first().getAttribute('aria-label'), '1');
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.waitForFunction(() => document.documentElement.style.colorScheme === 'dark', null, { timeout: 2000 });
+  assert.equal(await page.locator('#btnTheme').getAttribute('aria-label'), '切换到浅色模式');
 });
 
 test('completed digit can still be tapped again to erase it', async t => {

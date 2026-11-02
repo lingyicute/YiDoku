@@ -8,12 +8,11 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2048'%3E%3Crect%20width='48'%20height='48'%20rx='12'%20fill='%23543d8c'/%3E%3Cg%20fill='%23fff'%3E%3Crect%20x='11'%20y='11'%20width='7.5'%20height='7.5'%20rx='2'/%3E%3Crect%20x='20.25'%20y='11'%20width='7.5'%20height='7.5'%20rx='2'%20opacity='.55'/%3E%3Crect%20x='29.5'%20y='11'%20width='7.5'%20height='7.5'%20rx='2'/%3E%3Crect%20x='11'%20y='20.25'%20width='7.5'%20height='7.5'%20rx='2'%20opacity='.55'/%3E%3Crect%20x='20.25'%20y='20.25'%20width='7.5'%20height='7.5'%20rx='2'/%3E%3Crect%20x='29.5'%20y='20.25'%20width='7.5'%20height='7.5'%20rx='2'%20opacity='.55'/%3E%3Crect%20x='11'%20y='29.5'%20width='7.5'%20height='7.5'%20rx='2'/%3E%3Crect%20x='20.25'%20y='29.5'%20width='7.5'%20height='7.5'%20rx='2'%20opacity='.55'/%3E%3Crect%20x='29.5'%20y='29.5'%20width='7.5'%20height='7.5'%20rx='2'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root {
-    --h: 257;
     --bg:#fbf8ff; --surf:#efeaf5; --surfHi:#e9e4f0; --tonal:#e2dfe8;
     --primary:#543d8c; --onPrimary:#fff; --pc:#dcd0f8; --onPc:#1c0b4a;
     --sc:#dcd6ec; --onSc:#1b1630;
     --text:#1b1822; --textVar:#48435a; --outline:#7a748a; --outlineV:#cbc5d6;
-    --err:#ba1a1a; --errC:#ffdad6; --onErrC:#410002;
+    --err:#ba1a1a; --errC:#ffdad6;
     --board:#d5d0e1; --cell:#f7f5fc; --given:#e1dbf1; --peer:#d7cdee; --same:#b9a8e6;
     font-family: "Nebulove","Google Sans", Roboto, "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   }
@@ -81,13 +80,13 @@
   .card .l { font-size:14px; font-weight:600; opacity:.85; letter-spacing:1px; }
   .card .v { font-size:30px; font-weight:800; white-space:nowrap; line-height:1.15; font-variant-numeric:tabular-nums; }
   .round { width:56px; height:56px; border-radius:50%; display:grid; place-items:center; transition:transform .1s, filter .2s, opacity .2s; }
-  .round:active { transform:scale(.9); }
+  .round:not(:disabled):active { transform:scale(.9); }
   .round.tonal { background:var(--tonal); color:var(--text); }
   .round.fill { background:var(--primary); color:var(--onPrimary); }
   .round:disabled { opacity:.38; cursor:default; }
   .round:not(:disabled):hover { filter:brightness(.94); }
   .round .ico { width:26px; height:26px; stroke-width:2.4; }
-  .round.fill:active .ico { transform:rotate(180deg); transition:transform .3s; }
+  .round.fill:not(:disabled):active .ico { transform:rotate(180deg); transition:transform .3s; }
 
   /* ===== Board ===== */
   .boardWrap { grid-area:board; position:relative; }
@@ -124,25 +123,27 @@
   .controls { grid-area:controls; display:flex; flex-direction:column; gap:14px; }
   .tools { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
   .tool { height:56px; border-radius:20px; background:var(--tonal); display:flex; align-items:center; justify-content:center; gap:6px; font-weight:600; font-size:15px; position:relative; white-space:nowrap; min-width:0; transition:background .2s, color .2s, transform .1s; }
-  .tool:active { transform:scale(.95); }
-  .tool:hover { background:color-mix(in srgb, var(--tonal) 85%, var(--primary)); }
+  .tool:not(:disabled):active { transform:scale(.95); }
+  .tool:not(:disabled):hover { background:color-mix(in srgb, var(--tonal) 85%, var(--primary)); }
+  .tool:disabled, .chip:disabled { opacity:.38; cursor:default; }
   .tool .ico { width:22px; height:22px; }
   .tool.active { background:var(--primary); color:var(--onPrimary); }
   .tool .tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:99px; background:color-mix(in srgb, currentColor 18%, transparent); }
   .pad { display:grid; grid-template-columns:repeat(9,1fr); gap:8px 7px; padding-top:6px; }
   .num { height:60px; border-radius:16px; background:var(--pc); color:var(--onPc); display:flex; align-items:center; justify-content:center; position:relative; transition:transform .1s, opacity .2s, background .2s; }
-  .num:hover { background:color-mix(in srgb, var(--pc) 80%, var(--primary)); }
-  .num:active { transform:scale(.9); }
+  .num:not(:disabled):hover { background:color-mix(in srgb, var(--pc) 80%, var(--primary)); }
+  .num:not(:disabled):active { transform:scale(.9); }
   .num b { font-size:24px; font-weight:700; line-height:1.1; }
   .num small { position:absolute; top:-7px; right:-5px; min-width:18px; height:18px; padding:0 4px; border-radius:99px; background:var(--primary); color:var(--onPrimary); font-size:11px; font-weight:700; line-height:18px; text-align:center; box-shadow:0 0 0 2px var(--bg); pointer-events:none; }
   .num small:empty { display:none; }
   .num:disabled { opacity:.28; cursor:default; transform:none; }
   .pad.notesOn .num { background:var(--sc); color:var(--onSc); }
+  .pad.notesOn .num:not(:disabled):hover { background:color-mix(in srgb, var(--sc) 80%, var(--primary)); }
   .pad.notesOn .num b { font-size:20px; font-weight:500; }
   .chips { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:4px; }
   .chip { height:44px; padding:0 20px; border-radius:14px; border:1.5px solid var(--outline); font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px; transition:background .2s, border-color .2s, transform .1s; }
-  .chip:hover { background:color-mix(in srgb, var(--text) 6%, transparent); }
-  .chip:active { transform:scale(.95); }
+  .chip:not(:disabled):hover { background:color-mix(in srgb, var(--text) 6%, transparent); }
+  .chip:not(:disabled):active { transform:scale(.95); }
   .chip.on { background:var(--sc); border-color:transparent; color:var(--onSc); padding-left:14px; }
   .chip .ico { width:20px; height:20px; stroke-width:2.6; }
   .hint { text-align:center; color:var(--textVar); font-size:14px; line-height:2; margin-top:2px; }
@@ -246,7 +247,7 @@
     </div>
 
     <div class="boardWrap">
-      <div class="board" id="board" role="grid" aria-rowcount="9" aria-colcount="9" aria-label="数独棋盘"></div>
+      <div class="board" id="board" role="grid" aria-rowcount="9" aria-colcount="9" aria-busy="false" aria-label="数独棋盘"></div>
       <div class="spinner"><b></b></div>
     </div>
 
@@ -333,23 +334,29 @@ function applyTheme() {
     primary: hsl(h,75,80), onPrimary: hsl(h,55,20), pc: hsl(h,36,30), onPc: hsl(h,80,90),
     sc: hsl(h,18,29), onSc: hsl(h,30,90),
     text: hsl(h,15,91), textVar: hsl(h,10,76), outline: hsl(h,6,58), outlineV: hsl(h,8,30),
-    err: '#ffb4ab', errC: '#93000a', onErrC: '#ffdad6',
+    err: '#ffb4ab', errC: '#93000a',
     board: hsl(h,14,17), cell: hsl(h,12,23), given: hsl(h,20,30), peer: hsl(h,26,35), same: hsl(h,38,43)
   } : {
     bg: hsl(h,40,98), surf: hsl(h,22,94), surfHi: hsl(h,26,93), tonal: hsl(h,10,89),
     primary: hsl(h,38,40), onPrimary: '#ffffff', pc: hsl(h,72,91), onPc: hsl(h,80,14),
     sc: hsl(h,26,88), onSc: hsl(h,30,15),
     text: hsl(h,25,10), textVar: hsl(h,12,30), outline: hsl(h,10,47), outlineV: hsl(h,15,80),
-    err: '#ba1a1a', errC: '#ffdad6', onErrC: '#410002',
+    err: '#ba1a1a', errC: '#ffdad6',
     board: hsl(h,16,79), cell: hsl(h,55,98), given: hsl(h,38,92), peer: hsl(h,62,87), same: hsl(h,62,76)
   };
   const root = document.documentElement;
   Object.entries(t).forEach(([k, v]) => root.style.setProperty('--' + k, v));
   root.style.colorScheme = dark ? 'dark' : 'light';
   document.querySelector('meta[name=theme-color]').content = t.bg;
+  const themeLabel = dark ? '切换到浅色模式' : '切换到深色模式';
   $('#btnTheme').innerHTML = dark ? ICON.sun : ICON.moon;
-  $('#btnTheme').title = dark ? '切换到浅色模式' : '切换到深色模式';
-  document.querySelectorAll('.sw').forEach(el => el.classList.toggle('sel', el.dataset.id === palId));
+  $('#btnTheme').title = themeLabel;
+  $('#btnTheme').setAttribute('aria-label', themeLabel);
+  document.querySelectorAll('.sw').forEach(el => {
+    const active = el.dataset.id === palId;
+    el.classList.toggle('sel', active);
+    el.setAttribute('aria-pressed', String(active));
+  });
 }
 
 /* ---------- 数独核心 ---------- */
@@ -506,7 +513,8 @@ board.addEventListener('focusin', e => {
 const pad = $('#pad'), numBtns = [];
 for (let d = 1; d <= 9; d++) {
   const b = document.createElement('button'); b.className = 'num';
-  b.innerHTML = `<b>${d}</b><small></small>`;
+  b.setAttribute('aria-label', String(d));
+  b.innerHTML = `<b>${d}</b><small aria-hidden="true"></small>`;
   b.addEventListener('click', () => input(d));
   numBtns[d] = b; pad.appendChild(b);
 }
@@ -542,6 +550,8 @@ function render() {
       if (sv && v === sv && i !== sel) cls += ' same';
     }
     if (v && !given && v !== S.solution[i]) cls += ' wrong';
+    if (el.classList.contains('bump')) cls += ' bump';
+    if (el.classList.contains('shake')) cls += ' shake';
     el.className = cls;
     el.setAttribute('aria-selected', i === sel ? 'true' : 'false');
     el.tabIndex = i === (sel < 0 ? 0 : sel) ? 0 : -1;
@@ -553,7 +563,10 @@ function render() {
     if (v) el.textContent = v;
     else if (S.notes[i]) {
       let h = '<div class="notes">';
-      for (let d = 1; d <= 9; d++) h += `<span class="${sv === d ? 'hl' : ''}">${S.notes[i] & (1 << d) ? d : ''}</span>`;
+      for (let d = 1; d <= 9; d++) {
+        const has = S.notes[i] & (1 << d);
+        h += `<span${has && sv === d ? ' class="hl"' : ''}>${has ? d : ''}</span>`;
+      }
       el.innerHTML = h + '</div>';
     } else el.textContent = '';
   }
@@ -584,7 +597,10 @@ function render() {
   renderChips();
 }
 function fx(i, cls) {
-  const el = cells[i]; el.classList.add(cls);
+  const el = cells[i];
+  el.classList.remove('bump', 'shake');
+  void el.offsetWidth;
+  el.classList.add(cls);
   el.onanimationend = () => { el.classList.remove(cls); el.onanimationend = null; };
 }
 
