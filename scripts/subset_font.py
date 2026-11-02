@@ -11,6 +11,8 @@ Nebulove 字体子集化 & 内嵌
   python3 scripts/subset_font.py --extra-chars glyphs.txt
 """
 import argparse, base64, io, os, re, sys, tempfile, urllib.request
+from html import unescape
+from html.parser import HTMLParser
 from pathlib import Path
 FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.woff2"
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -21,25 +23,137 @@ PUNCT = set("：，。！？；‘’“”（）【】—…·《》×＝÷＋�
 # 匹配 @font-face 块，并连同紧邻其前的一个块注释（脚本自己生成的说明）一起吃掉，
 # 保证重复运行时注释不会越积越多。
 FONT_FACE_RE = re.compile(r'(?:/\*(?:[^*]|\*(?!/))*\*/\s*)?@font-face\s*\{[^}]*\}', re.S)
-JS_TOKEN_RE = re.compile(r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|/\*.*?\*/|//[^\r\n]*""", re.S)
+
+# 这些词之后出现的 “/” 是正则字面量的开头，而不是除号。
+_REGEX_AFTER_WORDS = {"return", "typeof", "instanceof", "in", "of", "new", "delete", "void",
+                      "throw", "case", "do", "else", "yield", "await"}
+_REGEX_AFTER_CHARS = set("(,=:[!&|?{};+-*%<>~^")
+
+
+def _is_ident(ch):
+    return ch.isalnum() or ch in "_$"
+
+
+def _scan_js(src, i, in_template_expr=False):
+    """扫描 JS 源码，去掉注释，保留字符串、模板字符串与正则字面量原样。
+
+    返回 (文本, 结束位置)。这不是完整的 JS 解析器：除号与正则的区分只看前一个
+    有效记号（足够覆盖常见写法）。
+    """
+    out, n, depth, last, word = [], len(src), 0, "", ""
+    while i < n:
+        c = src[i]
+        nxt = src[i + 1] if i + 1 < n else ""
+        if c in "'\"":
+            j = i + 1
+            while j < n and src[j] != c and src[j] not in "\r\n":
+                j += 2 if src[j] == "\\" else 1
+            out.append(src[i:j + 1]); i = j + 1; last, word = c, ""
+        elif c == "`":
+            out.append(c); i += 1
+            while i < n and src[i] != "`":
+                if src[i] == "\\":
+                    out.append(src[i:i + 2]); i += 2
+                elif src.startswith("${", i):
+                    out.append("${")
+                    text, i = _scan_js(src, i + 2, True)
+                    out.append(text)
+                else:
+                    out.append(src[i]); i += 1
+            out.append("`"); i += 1; last, word = "`", ""
+        elif c == "/" and nxt == "/":
+            j = i
+            while j < n and src[j] not in "\r\n":
+                j += 1
+            out.append(" "); i = j
+        elif c == "/" and nxt == "*":
+            j = src.find("*/", i + 2)
+            out.append(" "); i = n if j < 0 else j + 2
+        elif c == "/" and (not last or last in _REGEX_AFTER_CHARS or word in _REGEX_AFTER_WORDS):
+            j, in_class = i + 1, False
+            while j < n and src[j] not in "\r\n" and (in_class or src[j] != "/"):
+                if src[j] == "\\":
+                    j += 1
+                elif src[j] == "[":
+                    in_class = True
+                elif src[j] == "]":
+                    in_class = False
+                j += 1
+            if j < n and src[j] == "/":
+                out.append(src[i:j + 1]); i = j + 1; last, word = "/", ""
+            else:                                  # 没有闭合：当作除号
+                out.append(c); i += 1; last, word = c, ""
+        else:
+            if in_template_expr:
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    if depth == 0:
+                        out.append(c)
+                        return "".join(out), i + 1
+                    depth -= 1
+            glued = i > 0 and _is_ident(src[i - 1])
+            out.append(c); i += 1
+            if _is_ident(c):
+                word = word + c if glued and word else c
+                last = c
+            elif not c.isspace():
+                last, word = c, ""
+            elif word:
+                last = word[-1]
+    return "".join(out), i
+
+
+def strip_js_comments(src):
+    return _scan_js(src, 0)[0]
+
+
+class TextParser(HTMLParser):
+    """按 HTML 语法收集会进入页面的文字：忽略 HTML 注释、<style>，<script> 去掉 JS 注释。"""
+    CDATA_CONTENT_ELEMENTS = (
+        "script", "style", "textarea", "title", "xmp", "iframe", "noembed", "noframes", "noscript"
+    )
+
+    def __init__(self, html):
+        super().__init__(convert_charrefs=False)
+        self.tag, self.strip_js, self.text, self.attrs = None, False, [], []
+        self.feed(html)
+        self.close()
+
+    def handle_starttag(self, tag, attrs):
+        if self.tag != "style":
+            self.attrs.extend(v for _, v in attrs if v is not None)
+        self.tag = tag
+        kind = (dict(attrs).get("type") or "").strip().lower()
+        self.strip_js = tag == "script" and (not kind or "javascript" in kind or kind == "module")
+
+    def handle_endtag(self, tag):
+        self.tag = None
+
+    def handle_data(self, data):
+        if self.tag == "style":
+            return
+        self.text.append(strip_js_comments(data) if self.tag == "script" and self.strip_js else data)
+
+    def handle_entityref(self, name):
+        self.handle_data("&" + name + ";")
+
+    def handle_charref(self, name):
+        self.handle_data("&#" + name + ";")
 
 
 def strip_non_render_text(html):
     """剔除不会渲染的文字：HTML 注释、<style>、<script> 里的注释。"""
-    html = re.sub(r'<!--.*?-->', '', html, flags=re.S)
-    html = re.sub(r'<style\b[^>]*>.*?</style>', '', html, flags=re.S | re.I)
-
-    def _js(m):
-        return JS_TOKEN_RE.sub(lambda t: ' ' if t.group(0).startswith('/') else t.group(0), m.group(1))
-
-    return re.sub(r'<script\b[^>]*>(.*?)</script>', _js, html, flags=re.S | re.I)
+    parser = TextParser(html)
+    return " ".join(parser.text + parser.attrs)
 
 
 def collect_chars(html, all_text=False, extra=""):
     if all_text:
         chars = set(FONT_FACE_RE.sub('', html))
     else:
-        chars = set(strip_non_render_text(html))
+        raw = strip_non_render_text(html)
+        chars = set(raw) | set(unescape(raw))
     chars |= ASCII | PUNCT | set(extra)
     chars.discard("\n")
     chars.discard("\r")
