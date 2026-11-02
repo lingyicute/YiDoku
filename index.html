@@ -318,10 +318,14 @@ const fmt = s => {
 
 /* ---------- 主题 (Material You 风格动态配色) ---------- */
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
-let mode = store.get('mode', 'system');
-if (!['system', 'light', 'dark'].includes(mode)) mode = 'system';
-let palId = store.get('palette', 'purple');
-if (!PALETTES.some(p => p.id === palId)) palId = PALETTES[0].id;
+let mode, palId;
+function loadPrefs() {
+  mode = store.get('mode', 'system');
+  if (!['system', 'light', 'dark'].includes(mode)) mode = 'system';
+  palId = store.get('palette', 'purple');
+  if (!PALETTES.some(p => p.id === palId)) palId = PALETTES[0].id;
+}
+loadPrefs();
 const isDark = () => mode === 'dark' || (mode === 'system' && systemTheme.matches);
 systemTheme.addEventListener('change', () => { if (mode === 'system') applyTheme(); });
 const hsl = (h, s, l) => `hsl(${((h % 360) + 360) % 360} ${s}% ${l}%)`;
@@ -447,6 +451,8 @@ let stats = normalizeStats(store.get('stats', null));
 const parseStored = v => { try { return v == null ? null : JSON.parse(v); } catch { return null; } };
 window.addEventListener('storage', e => {
   if (e.key === null || e.key === 'yidoku:stats') stats = normalizeStats(parseStored(e.newValue));
+  // 主题偏好同理：其他标签页改动或清除数据后，这里立即跟随。
+  if (e.key === null || e.key === 'yidoku:mode' || e.key === 'yidoku:palette') { loadPrefs(); applyTheme(); }
 });
 
 function save() { if (!S || cleared) return; syncClock(); store.set('state', S); }

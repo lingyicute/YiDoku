@@ -313,3 +313,20 @@ test('wins in two tabs are both counted', async t => {
   await second.keyboard.press('4');
   assert.equal(await wins(second), 2);
 });
+
+test('theme choices follow other tabs, including clearing data', async t => {
+  const context = await browser.newContext({ colorScheme: 'light', reducedMotion: 'reduce' });
+  t.after(() => context.close());
+  const first = await context.newPage(), second = await context.newPage();
+  for (const page of [first, second]) { await page.goto(url); await page.waitForSelector('.cell'); }
+  await first.locator('#btnTheme').click();
+  await second.waitForFunction(() => document.documentElement.style.colorScheme === 'dark', null, { timeout: 2000 });
+  await first.locator('#btnPalette').click();
+  await first.locator('.sw[data-id="green"]').click();
+  await second.waitForFunction(() => document.querySelector('.sw.sel').dataset.id === 'green', null, { timeout: 2000 });
+  await first.locator('#btnMenu').click();
+  await first.locator('[data-act="reset"]').click();
+  await first.locator('#dlgActions .primary').click();
+  await second.waitForFunction(() => document.documentElement.style.colorScheme === 'light' &&
+    document.querySelector('.sw.sel').dataset.id === 'purple', null, { timeout: 2000 });
+});
