@@ -443,6 +443,11 @@ function normalizeStats(raw) {
   return s;
 }
 let stats = normalizeStats(store.get('stats', null));
+// 统计整体写回 localStorage；其他标签页更新后同步内存副本，否则此处下一次胜利会覆盖它们。
+const parseStored = v => { try { return v == null ? null : JSON.parse(v); } catch { return null; } };
+window.addEventListener('storage', e => {
+  if (e.key === null || e.key === 'yidoku:stats') stats = normalizeStats(parseStored(e.newValue));
+});
 
 function save() { if (!S || cleared) return; syncClock(); store.set('state', S); }
 function startState(diff, g) {

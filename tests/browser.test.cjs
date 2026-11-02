@@ -287,3 +287,29 @@ test('menu mutations are disabled while a new puzzle is pending', async t => {
   assert.equal((await savedState(page)).diff, 'easy');
   assert.equal(await page.locator('#btnNotes').getAttribute('aria-pressed'), 'false');
 });
+
+test('wins in two tabs are both counted', async t => {
+  const s = state();
+  s.values = solution.slice(); s.values[2] = 0;
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
+  t.after(() => context.close());
+  await context.addInitScript(saved => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    if (!localStorage.getItem('yidoku:state')) localStorage.setItem('yidoku:state', JSON.stringify(saved));
+  }, s);
+  const first = await context.newPage(), second = await context.newPage();
+  for (const page of [first, second]) { await page.goto(url); await page.waitForSelector('.cell'); }
+  await first.locator('.cell[data-i="2"]').click();
+  await first.keyboard.press('4');
+  const wins = page => page.evaluate(() => JSON.parse(localStorage.getItem('yidoku:stats')).easy.won);
+  assert.equal(await wins(first), 1);
+  // The stats dialog reads the live in-memory copy of the second tab.
+  await second.locator('#btnMenu').click();
+  await second.locator('[data-act="stats"]').click();
+  await second.waitForFunction(() => document.querySelector('#dlgBody tr:nth-child(2) td:nth-child(2)').textContent === '1');
+  await second.locator('#dlgActions .primary').click();
+  await second.locator('.cell[data-i="2"]').click();
+  await second.keyboard.press('4');
+  assert.equal(await wins(second), 2);
+});
