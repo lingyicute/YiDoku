@@ -465,8 +465,10 @@ function startState(diff, g) {
   board.classList.remove('win');
   save(); render();
 }
-function newGame(diff) {
-  if (generating) return;
+let forcedDiff = null;
+// force：清除数据后必须开一局 easy；若正好在生成中，则让进行中的生成改用该难度，而不是静默丢弃。
+function newGame(diff, force) {
+  if (generating) { if (force) forcedDiff = diff; return; }
   syncClock(); clockRunning = false;
   generating = true;
   clearTimeout(winTimer);
@@ -475,6 +477,7 @@ function newGame(diff) {
   render();
   setTimeout(() => {
     let g = null;
+    if (forcedDiff) { diff = forcedDiff; forcedDiff = null; }
     try { g = generate(diff); }
     catch { toast('生成失败，请重试'); }
     generating = false;
@@ -791,7 +794,7 @@ $('#popMenu').addEventListener('click', e => {
         notesMode = false; history = []; sel = -1;
         palId = 'purple';
         mode = 'system';
-        applyTheme(); newGame('easy'); toast('已清除所有数据');
+        applyTheme(); newGame('easy', true); toast('已清除所有数据');
       } }] });
 });
 
