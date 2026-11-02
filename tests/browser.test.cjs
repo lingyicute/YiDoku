@@ -194,9 +194,15 @@ test('timer excludes hidden time and keeps fractional foreground seconds', async
     document.dispatchEvent(new Event('visibilitychange'));
   });
   assert.equal((await savedState(page)).seconds, seconds);
+  await page.locator('#btnMenu').click();
+  await page.locator('[data-act="rules"]').click();
+  await page.clock.runFor(10000);
+  await page.locator('#dlgActions .primary').click();
+  assert.equal((await savedState(page)).seconds, seconds, 'timer pauses while modal dialog is open');
   await page.clock.runFor(500);
   await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
   assert.equal((await savedState(page)).seconds, seconds + 1);
+  assert.equal(await page.locator('#timer').textContent(), '00:01');
 });
 
 test('narrow viewport scaling is stable and does not overflow', async t => {
@@ -266,9 +272,14 @@ test('menu mutations are disabled while a new puzzle is pending', async t => {
   await page.clock.runFor(30);
   assert.equal((await savedState(page)).diff, 'hard');
   assert.equal(await page.locator('[data-act="reset"]').isEnabled(), true);
+  await page.locator('#btnNotes').click();
+  assert.equal(await page.locator('#btnNotes').getAttribute('aria-pressed'), 'true');
   await page.locator('#btnMenu').click();
   await page.locator('[data-act="reset"]').click();
   await page.locator('#dlgActions .primary').click();
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')));
+  assert.equal(await savedState(page), null, 'unload during reset generation must not resurrect old state');
   await page.clock.runFor(30);
   assert.equal((await savedState(page)).diff, 'easy');
+  assert.equal(await page.locator('#btnNotes').getAttribute('aria-pressed'), 'false');
 });

@@ -113,7 +113,7 @@
   .cell.shake { animation:shake .35s; }
   @keyframes bump { 0%{transform:scale(.7)} 100%{transform:scale(1.04)} }
   @keyframes shake { 0%,100%{translate:0} 20%{translate:-4px} 40%{translate:4px} 60%{translate:-3px} 80%{translate:3px} }
-  .board.win .cell { animation:wave .7s ease both; animation-delay:calc(var(--d) * 45ms); }
+  .board.win .cell { animation:wave .7s ease; animation-delay:calc(var(--d) * 45ms); }
   @keyframes wave { 0%{transform:scale(1)} 40%{transform:scale(1.14); background:var(--primary); color:var(--onPrimary)} 100%{transform:scale(1)} }
   .spinner { position:absolute; inset:0; display:none; place-items:center; pointer-events:none; }
   .board.loading + .spinner { display:grid; }
@@ -405,6 +405,7 @@ function search(grid, limit, rand) {
 }
 
 function generate(diff) {
+  if (!Object.prototype.hasOwnProperty.call(DIFFS, diff)) diff = 'easy';
   const { solution } = search(Array(81).fill(0), 1, true);
   if (!solution) throw new Error('题目生成失败：求解器未返回完整解');
   const puzzle = solution.slice();
@@ -421,28 +422,29 @@ function generate(diff) {
 
 /* ---------- 状态 ---------- */
 let S = null, history = [], sel = -1, notesMode = false;
-let generating = false, winTimer;
+let generating = false, cleared = false, winTimer;
 function freshStats() { return { easy: { won: 0, best: null }, medium: { won: 0, best: null }, hard: { won: 0, best: null }, expert: { won: 0, best: null } }; }
 function normalizeStats(raw) {
   const s = freshStats();
   if (raw && typeof raw === 'object') for (const k in s) {
     const r = raw[k];
-    if (r && typeof r === 'object') {
-      if (Number.isSafeInteger(r.won) && r.won > 0) s[k].won = Math.floor(r.won);
-      if (Number.isSafeInteger(r.best) && r.best >= 0) s[k].best = Math.floor(r.best);
+    if (r && typeof r === 'object' && Number.isSafeInteger(r.won) && r.won > 0) {
+      s[k].won = r.won;
+      if (Number.isSafeInteger(r.best) && r.best >= 0) s[k].best = r.best;
     }
   }
   return s;
 }
 let stats = normalizeStats(store.get('stats', null));
 
-function save() { syncClock(); store.set('state', S); }
+function save() { if (!S || cleared) return; syncClock(); store.set('state', S); }
 function startState(diff, g) {
+  cleared = false;
   S = { diff, puzzle: g.puzzle, solution: g.solution, values: g.puzzle.slice(), notes: Array(81).fill(0), seconds: 0, mistakes: 0, hints: 0, complete: false };
-  history = []; sel = -1;
+  history = []; sel = -1; notesMode = false;
   if (board.contains(document.activeElement)) document.activeElement.blur();
   resetClock();
-  $('#board').classList.remove('win');
+  board.classList.remove('win');
   save(); render();
 }
 function newGame(diff) {
@@ -454,15 +456,14 @@ function newGame(diff) {
   board.setAttribute('aria-busy', 'true');
   render();
   setTimeout(() => {
-    try { startState(diff, generate(diff)); }
+    let g = null;
+    try { g = generate(diff); }
     catch { toast('生成失败，请重试'); }
-    finally {
-      generating = false;
-      board.classList.remove('loading');
-      board.setAttribute('aria-busy', 'false');
-      lastClock = performance.now(); clockRunning = !S.complete && !document.hidden;
-      render();
-    }
+    generating = false;
+    board.classList.remove('loading');
+    board.setAttribute('aria-busy', 'false');
+    if (g) startState(diff, g);
+    else { resetClock(); render(); }
   }, 30);
 }
 const hasProgress = () => S && !S.complete && (S.values.some((v, i) => v !== S.puzzle[i]) || S.notes.some(n => n !== 0));
@@ -581,7 +582,6 @@ function render() {
   for (const id of ['#btnErase', '#btnHint', '#btnNotes']) $(id).disabled = S.complete || generating;
   const ht = $('#hintTag'); ht.hidden = !S.hints; ht.textContent = S.hints;
   renderChips();
-  if (S.complete) board.classList.add('win');
 }
 function fx(i, cls) {
   const el = cells[i]; el.classList.add(cls);
@@ -595,8 +595,8 @@ function clearPeerNotes(i, d) {
   for (let k = 0; k < 81; k++) if (isPeer(i, k)) S.notes[k] &= bit;
 }
 function after(i) {
+  if (S.values.every((v, k) => v === S.solution[k])) return win();
   render(); save();
-  if (S.values.every((v, k) => v === S.solution[k])) win();
 }
 function input(d) {
   if (generating || S.complete) return;
@@ -654,8 +654,9 @@ function move(dr, dc) {
 function win() {
   if (S.complete) return;
   syncClock(); clockRunning = false;
-  S.complete = true; sel = -1;
+  S.complete = true; sel = -1; notesMode = false;
   if (board.contains(document.activeElement)) document.activeElement.blur();
+  board.classList.add('win');
   const st = stats[S.diff]; st.won++;
   const record = st.best == null || S.seconds < st.best;
   if (record) st.best = S.seconds;
@@ -675,6 +676,13 @@ function win() {
 
 /* ---------- 对话框 / Toast ---------- */
 const dlg = $('#dlg');
+function closeDialog() {
+  if (dlg.open) dlg.close();
+  if (!document.body.classList.contains('dlg-open')) return;
+  document.body.classList.remove('dlg-open');
+  lastClock = performance.now();
+  clockRunning = canTick();
+}
 function openDialog({ title, body, actions }) {
   clearTimeout(winTimer);
   togglePop(null);
@@ -684,19 +692,20 @@ function openDialog({ title, body, actions }) {
   actions.forEach(a => {
     const b = document.createElement('button');
     b.textContent = a.label; if (a.primary) b.className = 'primary';
-    b.onclick = () => { dlg.close(); a.fn && a.fn(); };
+    b.onclick = () => { closeDialog(); a.fn && a.fn(); };
     box.appendChild(b);
   });
   if (!dlg.open) {
+    syncClock(); clockRunning = false;
     document.body.classList.add('dlg-open');
     dlg.showModal();
   }
 }
-dlg.addEventListener('close', () => document.body.classList.remove('dlg-open'));
+dlg.addEventListener('close', closeDialog);
 dlg.addEventListener('click', e => {
   if (e.target !== dlg) return;
   const r = dlg.getBoundingClientRect();
-  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) closeDialog();
 });
 let toastTimer;
 function toast(msg) {
@@ -751,7 +760,8 @@ $('#popMenu').addEventListener('click', e => {
       actions: [{ label: '关闭', primary: true }] });
   else if (act === 'reset') openDialog({ title: '清除所有数据？', body: '将清除当前游戏、统计数据以及主题设置，且无法恢复。',
       actions: [{ label: '取消' }, { label: '清除', primary: true, fn: () => {
-        store.clear(); stats = freshStats();
+        store.clear(); cleared = true; stats = freshStats();
+        notesMode = false; history = []; sel = -1;
         palId = 'purple';
         mode = 'system';
         applyTheme(); newGame('easy'); toast('已清除所有数据');
@@ -796,35 +806,38 @@ document.addEventListener('keydown', e => {
 // 用单调时钟累计前台时间，避免回调节流/主线程繁忙导致少计。
 // 小数毫秒留到下一次累计，切换前后台不丢失当前秒内的进度。
 let tick = 0, lastClock = performance.now(), clockRemainder = 0, clockRunning = false;
+const canTick = () => !!S && !S.complete && !generating && !dlg.open && !document.hidden;
 function syncClock() {
   const now = performance.now();
   if (S && clockRunning) {
     clockRemainder += Math.max(0, now - lastClock);
     const seconds = Math.floor(clockRemainder / 1000);
-    S.seconds += seconds;
-    clockRemainder -= seconds * 1000;
+    if (seconds > 0) {
+      S.seconds += seconds;
+      clockRemainder -= seconds * 1000;
+      $('#timer').textContent = fmt(S.seconds);
+    }
   }
   lastClock = now;
 }
 function resetClock() {
   lastClock = performance.now(); clockRemainder = 0; tick = 0;
-  clockRunning = !S.complete && !generating && !document.hidden;
+  clockRunning = canTick();
 }
 setInterval(() => {
   syncClock();
   if (!S || !clockRunning) return;
-  $('#timer').textContent = fmt(S.seconds);
   if (++tick % 5 === 0) save();
 }, 1000);
 document.addEventListener('visibilitychange', () => {
   syncClock();
-  clockRunning = !!S && !S.complete && !generating && !document.hidden;
+  clockRunning = canTick();
   if (S) save();
 });
 window.addEventListener('pagehide', () => { if (S) save(); clockRunning = false; });
 window.addEventListener('pageshow', () => {
   lastClock = performance.now();
-  clockRunning = !!S && !S.complete && !generating && !document.hidden;
+  clockRunning = canTick();
 });
 window.addEventListener('beforeunload', () => { if (S) save(); });
 
@@ -850,7 +863,7 @@ function validState(x) {
   if (!x || typeof x !== 'object' || typeof x.diff !== 'string' ||
       !Object.prototype.hasOwnProperty.call(DIFFS, x.diff)) return false;
   if (!validGrid(x.puzzle, 9) || !validGrid(x.solution, 9) || !validGrid(x.values, 9) || !validGrid(x.notes, 1022)) return false;
-  if (x.solution.includes(0) || search(x.solution, 1, false).count !== 1) return false;
+  if (!x.puzzle.includes(0) || x.solution.includes(0) || search(x.solution, 1, false).count !== 1) return false;
   if (!x.puzzle.every((v, i) => v === 0 || v === x.solution[i])) return false;
   if (!x.values.every((v, i) => x.puzzle[i] === 0 || v === x.puzzle[i])) return false;
   if (!x.notes.every((v, i) => !(v & 1) && (!x.values[i] || v === 0))) return false;
@@ -867,7 +880,7 @@ if (validState(saved)) {
   // 完成标记不可信。恢复完成的棋盘不重复累计统计。
   S.complete = S.values.every((v, i) => v === S.solution[i]);
   resetClock();
-  try { render(); resumed = true; } catch { S = null; }
+  try { render(); save(); resumed = true; } catch { S = null; }
 }
 if (!resumed) startState('easy', generate('easy'));
 })();

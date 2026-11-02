@@ -77,6 +77,7 @@ test('saved games reject inconsistent givens, nonunique puzzles and invalid note
     s => { s.notes[given] = 2; },
     s => { s.notes[empty] = 1024; },
     s => { s.puzzle = Array(81).fill(0); },
+    s => { s.puzzle = s.solution.slice(); s.values = s.solution.slice(); },
     s => { s.puzzle[given] = s.puzzle[given] % 9 + 1; }
   ]) {
     const bad = plain(saved); mutate(bad); assert.equal(validState(bad), false);
@@ -87,8 +88,9 @@ test('saved games reject inconsistent givens, nonunique puzzles and invalid note
 
 test('statistics normalization rejects unsafe and nonnumeric data', () => {
   const stats = normalizeStats({ easy: { won: -1, best: '0' }, medium: { won: 3, best: 0 },
-    hard: { won: Infinity, best: Number.MAX_SAFE_INTEGER + 1 }, expert: null });
+    hard: { won: Infinity, best: Number.MAX_SAFE_INTEGER + 1 }, expert: { won: 0, best: 12 } });
   assert.deepEqual(plain(stats.easy), { won: 0, best: null });
   assert.deepEqual(plain(stats.medium), { won: 3, best: 0 });
   assert.deepEqual(plain(stats.hard), { won: 0, best: null });
+  assert.deepEqual(plain(stats.expert), { won: 0, best: null });
 });
