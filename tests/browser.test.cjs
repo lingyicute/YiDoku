@@ -214,6 +214,18 @@ test('narrow viewport scaling is stable and does not overflow', async t => {
 test('Tab can leave popups and Escape restores focus from a popup item', async t => {
   const page = await open(t);
   await page.locator('.cell[data-i="2"]').click();
+  await page.locator('#btnPalette').click();
+  await page.locator('#popPalette .sw').first().waitFor({ state: 'visible' });
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.id), 'purple');
+  for (let i = 0; i < 8; i++) await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'btnMenu');
+  assert.equal(await page.locator('#btnPalette').getAttribute('aria-expanded'), 'false');
+  await page.locator('#btnPalette').click();
+  await page.locator('#popPalette h4').click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'btnPalette');
+  assert.equal(await page.locator('#btnPalette').getAttribute('aria-expanded'), 'false');
   await page.locator('#btnMenu').click();
   await page.locator('#popMenu .item').first().waitFor({ state: 'visible' });
   await page.keyboard.press('Tab');
@@ -228,6 +240,20 @@ test('Tab can leave popups and Escape restores focus from a popup item', async t
   await page.locator('.cell[data-i="2"]').focus();
   await page.keyboard.press('4');
   assert.equal((await savedState(page)).values[2], 4);
+});
+
+test('board focus stays synchronized with selection on Escape and hints', async t => {
+  const page = await open(t);
+  await page.locator('.cell[data-i="2"]').click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.cell[aria-selected="true"]').count(), 0);
+  await page.locator('.cell[data-i="2"]').focus();
+  assert.equal(await selected(page), '2');
+  await page.locator('.cell[data-i="0"]').click();
+  await page.keyboard.press('h');
+  const hinted = await selected(page);
+  assert.notEqual(hinted, '0');
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.i), hinted);
 });
 
 test('menu mutations are disabled while a new puzzle is pending', async t => {

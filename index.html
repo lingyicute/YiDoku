@@ -32,7 +32,8 @@
   button { font:inherit; color:inherit; border:none; background:none; cursor:pointer; padding:0; }
   svg { display:block; }
   :focus-visible { outline:3px solid var(--primary); outline-offset:3px; }
-  .cell:focus-visible { outline-offset:-3px; outline-color:var(--onPrimary); }
+  .cell:focus-visible { outline-offset:-3px; }
+  .cell.sel:focus-visible { outline-color:var(--onPrimary); }
   .ico { width:24px; height:24px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .ico.fill { fill:currentColor; stroke:none; }
 
@@ -213,14 +214,13 @@
     <button class="hbtn" id="btnPalette" aria-controls="popPalette" aria-expanded="false" aria-label="切换配色">
       <svg class="ico fill" viewBox="0 0 24 24"><path d="M12 2C6.49 2 2 6.49 2 12s4.49 10 10 10c1.38 0 2.5-1.12 2.5-2.5 0-.61-.23-1.2-.64-1.67-.08-.1-.13-.21-.13-.33 0-.28.22-.5.5-.5H16c3.31 0 6-2.69 6-6 0-4.96-4.49-9-10-9zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 8 6.5 8 8 8.67 8 9.5 7.33 11 6.5 11zm3-4C8.67 7 8 6.33 8 5.5S8.67 4 9.5 4s1.5.67 1.5 1.5S10.33 7 9.5 7zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 4 14.5 4s1.5.67 1.5 1.5S15.33 7 14.5 7zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 8 17.5 8s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
     </button>
-    <button class="hbtn" id="btnMenu" aria-controls="popMenu" aria-expanded="false" aria-label="菜单">
-      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </button>
-
     <div class="pop" id="popPalette">
       <h4>选择配色</h4>
       <div class="swatches" id="swatches"></div>
     </div>
+    <button class="hbtn" id="btnMenu" aria-controls="popMenu" aria-expanded="false" aria-label="菜单">
+      <svg class="ico" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
     <div class="pop" id="popMenu">
       <button class="item" data-act="new"><svg class="ico" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>新游戏</button>
       <button class="item" data-act="stats"><svg class="ico" viewBox="0 0 24 24"><path d="M5 21V10M12 21V4M19 21v-7"/></svg>游戏统计</button>
@@ -440,6 +440,7 @@ function save() { syncClock(); store.set('state', S); }
 function startState(diff, g) {
   S = { diff, puzzle: g.puzzle, solution: g.solution, values: g.puzzle.slice(), notes: Array(81).fill(0), seconds: 0, mistakes: 0, hints: 0, complete: false };
   history = []; sel = -1;
+  if (board.contains(document.activeElement)) document.activeElement.blur();
   resetClock();
   $('#board').classList.remove('win');
   save(); render();
@@ -490,7 +491,7 @@ for (let r = 0; r < 9; r++) {
   board.appendChild(row);
 }
 board.addEventListener('pointerdown', e => {
-  if (generating) return;
+  if (generating || e.button > 0) return;
   const c = e.target.closest('.cell'); if (!c) return;
   sel = +c.dataset.i; render(); c.focus({ preventScroll: true });
 });
@@ -635,8 +636,12 @@ function hint() {
   push();
   S.values[i] = S.solution[i]; S.notes[i] = 0; clearPeerNotes(i, S.solution[i]);
   S.hints++; sel = i;
+  const keepFocus = board.contains(document.activeElement);
   after(i);
-  if (!S.complete) fx(i, 'bump');
+  if (!S.complete) {
+    if (keepFocus) cells[i].focus({ preventScroll: true });
+    fx(i, 'bump');
+  }
 }
 function move(dr, dc) {
   if (sel < 0) { sel = 40; } else {
@@ -650,6 +655,7 @@ function win() {
   if (S.complete) return;
   syncClock(); clockRunning = false;
   S.complete = true; sel = -1;
+  if (board.contains(document.activeElement)) document.activeElement.blur();
   const st = stats[S.diff]; st.won++;
   const record = st.best == null || S.seconds < st.best;
   if (record) st.best = S.seconds;
@@ -671,6 +677,7 @@ function win() {
 const dlg = $('#dlg');
 function openDialog({ title, body, actions }) {
   clearTimeout(winTimer);
+  togglePop(null);
   $('#dlgTitle').textContent = title;
   $('#dlgBody').innerHTML = body;
   const box = $('#dlgActions'); box.innerHTML = '';
@@ -712,7 +719,9 @@ $('#btnPalette').addEventListener('click', e => { e.stopPropagation(); togglePop
 $('#btnMenu').addEventListener('click', e => { e.stopPropagation(); togglePop('menu'); });
 document.addEventListener('click', e => { if (!e.target.closest('.pop')) togglePop(null); });
 document.addEventListener('focusin', e => {
-  if (!e.target.closest('.pop') && !Object.values(popButtons).some(b => b.contains(e.target))) togglePop(null);
+  Object.entries(pops).forEach(([k, el]) => {
+    if (el.classList.contains('open') && !el.contains(e.target) && !popButtons[k].contains(e.target)) togglePop(null);
+  });
 });
 
 const sws = $('#swatches');
@@ -757,14 +766,16 @@ $('#btnHint').addEventListener('click', hint);
 $('#btnNotes').addEventListener('click', () => { if (generating || S.complete) return; notesMode = !notesMode; render(); });
 
 document.addEventListener('keydown', e => {
-  if (generating || dlg.open || e.altKey || e.isComposing) return;
+  if (dlg.open || e.altKey || e.isComposing) return;
   if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
   const k = e.key;
   // 菜单和配色弹层拥有键盘交互；不能让快捷键穿透到棋盘。
-  if (Object.values(pops).some(el => el.classList.contains('open'))) {
-    if (k === 'Escape') { e.preventDefault(); togglePop(null); }
+  const openPop = Object.keys(pops).find(n => pops[n].classList.contains('open'));
+  if (openPop) {
+    if (k === 'Escape') { e.preventDefault(); togglePop(null); popButtons[openPop].focus(); }
     return;
   }
+  if (generating) return;
   if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey || e.metaKey) return;
   // 长按不应连续触发「翻转/消耗」类动作（填数会反复填擦、N 反复开关、H 连扣提示）；移动与撤销保留连发
@@ -778,7 +789,7 @@ document.addEventListener('keydown', e => {
   else if (lk === 'n') { if (!e.repeat && !S.complete) { notesMode = !notesMode; render(); } }
   else if (lk === 'h') { if (!e.repeat) hint(); }
   else if (lk === 'z' || lk === 'u') undo();
-  else if (k === 'Escape') { sel = -1; togglePop(null); render(); }
+  else if (k === 'Escape') { sel = -1; if (board.contains(document.activeElement)) document.activeElement.blur(); togglePop(null); render(); }
 });
 
 /* ---------- 计时器 ---------- */
