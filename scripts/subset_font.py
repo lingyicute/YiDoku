@@ -69,11 +69,11 @@ def download(url, path):
         f.write(r.read())
 
 
-def make_font_face(b64, woff_kb, b64_kb, count, mode):
+def make_font_face(b64, full_kb, woff_kb, b64_kb, count, mode):
     return (
         "/* ===== Nebulove 子集（内嵌，离线可用）=====\n"
         "   由 scripts/subset_font.py 生成：只保留本页会用到的 %d 个字形（%s 模式）。\n"
-        "   1.25 MB woff2 → %.1f KB woff2（base64 后 %.1f KB），随页面一起加载、无网络请求。\n"
+        "   %.0f KB woff2 → %.1f KB woff2（base64 后 %.1f KB），随页面一起加载、无网络请求。\n"
         "   内嵌字体不可用时回退到系统字体，不发起远程请求。 ===== */\n"
         '@font-face {\n'
         "  font-family: 'Nebulove';\n"
@@ -81,7 +81,7 @@ def make_font_face(b64, woff_kb, b64_kb, count, mode):
         "  font-weight: normal;\n"
         "  font-style: normal;\n"
         "  font-display: swap;\n"
-        "}" % (count, mode, woff_kb, b64_kb, b64)
+        "}" % (count, mode, full_kb, woff_kb, b64_kb, b64)
     )
 
 
@@ -138,8 +138,9 @@ def main():
     print("子集文件：%s" % keep)
 
     b64 = base64.b64encode(wofl).decode("ascii")
-    new_face = make_font_face(b64, len(wofl) / 1024, len(b64) / 1024, len(covered), mode)
-    new_html, n = FONT_FACE_RE.subn(new_face, html, count=1)
+    new_face = make_font_face(b64, full_size / 1024, len(wofl) / 1024, len(b64) / 1024, len(covered), mode)
+    # 用函数返回替换文本，避免 re 把其中的反斜杠当作转义。
+    new_html, n = FONT_FACE_RE.subn(lambda _: new_face, html, count=1)
     if new_html == html:
         print("页面已经是目标内容，未改动。")
         return

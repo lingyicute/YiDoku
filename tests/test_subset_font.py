@@ -41,7 +41,8 @@ class SubsetFontTests(unittest.TestCase):
             self.assertEqual(artifact.read_bytes(), b"keep me")
 
     def test_generated_css_is_offline_only(self):
-        css = font.make_font_face("Zm9udA==", 1, 2, 3, "test")
+        css = font.make_font_face("Zm9udA==", 100, 1, 2, 3, "test")
+        self.assertIn("100 KB woff2 → 1.0 KB woff2", css)
         self.assertIn("data:font/woff2", css)
         self.assertNotIn("https://", css)
         self.assertNotIn("http://", css)
